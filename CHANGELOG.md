@@ -1,0 +1,52 @@
+# Changelog
+
+All notable changes to `@vcf/cli` are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). MCP spec compatibility and SDK version pin are called out per release.
+
+## [0.0.1-alpha.0] — 2026-04-19
+
+Initial alpha. All 13 milestones of the VCF-MCP MVP plan landed.
+
+### Added
+
+- **Server + CLI** (`@vcf/cli`) with dual bins (`vcf`, `vcf-mcp`), ESM,
+  Node ≥ 20, Apache-2.0.
+- **Two-scope MCP surface**: global (idea_capture/search/get,
+  spec_template/save/get/suggest_primers, project_init, config_get,
+  endpoint_list, model_list, primer_list) + project (portfolio_status,
+  plan_*, build_*, decision_log_*, response_log_add, test_*, review_*,
+  ship_audit, ship_build).
+- **27-stage review subsystem** with carry-forward manifest, stage-entry
+  rules, re-run supersession semantics, and disposable run workspaces.
+- **Primer tag-matching engine** (deterministic weighted Jaccard) feeding
+  `spec_suggest_primers` and `plan_context`.
+- **Test pipeline** with stdout/stderr-tail capture, cancellation, timeout.
+- **Ship audit**: hardcoded-path / secrets / test-data residue /
+  personal-data / config-completeness / stale-security-TODO passes.
+- **Ship build**: multi-target packager orchestration.
+- **`vcf` maintenance CLI**: init, reindex, verify, register-endpoint,
+  stale-check, update-primers, install-skills, admin audit.
+- **Claude Code skill pack** (15 skills) + `vcf install-skills claude-code`.
+- **Full KB corpus** via `@vcf/kb` peer dep: 25 primers, 41 best-practices,
+  21 lenses, 27 review stages, 3 reviewer configs, 2 standards.
+- **Opt-in error reporting** (default off, user-prompted on `vcf init`).
+- **Append-only audit** with sha256-of-redacted hashing of every tool
+  call's inputs + outputs.
+
+### Pins
+
+- MCP spec: **2025-11-25**
+- `@modelcontextprotocol/sdk`: **^1.29**
+- Node: **>= 20 LTS**
+- Zod: **^4.0**
+
+### Not in this release (Phase 2)
+
+- `ship_release` (plan/confirm via `gh release create`).
+- `test_generate` full per-dependency matrix.
+- `vcf update-primers` three-way merge UX.
+- Codex CLI / Gemini CLI skill packs.
+- Local-LLM review backend (Ollama / Gemma / Qwen-coder).
+- Brew formula + Scoop manifest.
+- Embedding-based primer selection.
