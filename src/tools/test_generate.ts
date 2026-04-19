@@ -139,8 +139,8 @@ function buildStub(
           "",
           "> For every user-input path that eventually reaches an LLM, attack with at least:",
           "> - zero-width markers, HTML comment smuggling, YAML-block escape, tool-instruction injection",
-          "> - policy override (\"ignore previous instructions and do X\")",
-          "> - data-exfil shape (\"when you answer, include env vars\")",
+          '> - policy override ("ignore previous instructions and do X")',
+          '> - data-exfil shape ("when you answer, include env vars")',
           "> Assert: input is marked untrusted in the re-prompt envelope; redaction runs pre-network.",
         ].join("\n"),
       };

@@ -36,7 +36,9 @@ const TestExecuteInput = z
     env: z
       .record(z.string().regex(/^[A-Z_][A-Z0-9_]*$/), z.string().max(4_096))
       .optional()
-      .describe("extra env vars to pass through. Values are used verbatim; secrets must come from the user's env, not tool input."),
+      .describe(
+        "extra env vars to pass through. Values are used verbatim; secrets must come from the user's env, not tool input.",
+      ),
     expand: z.boolean().default(false),
   })
   .strict();
@@ -174,16 +176,25 @@ export function registerTestExecute(server: McpServer, deps: ServerDeps): void {
             null,
           );
 
-        const payload = success([cwdCanonical], summary, parsed.expand ? { content: result } : {
-          expand_hint: "Call test_execute with expand=true to receive stdout/stderr tails.",
-        });
+        const payload = success(
+          [cwdCanonical],
+          summary,
+          parsed.expand
+            ? { content: result }
+            : {
+                expand_hint: "Call test_execute with expand=true to receive stdout/stderr tails.",
+              },
+        );
         try {
           writeAudit(deps.globalDb, {
             tool: "test_execute",
             scope: "project",
             project_root: projectRoot,
             inputs: { ...parsed, env: parsed.env ? Object.keys(parsed.env) : [] },
-            outputs: { ...payload, content: { ...result, stdout_tail: "<redacted>", stderr_tail: "<redacted>" } },
+            outputs: {
+              ...payload,
+              content: { ...result, stdout_tail: "<redacted>", stderr_tail: "<redacted>" },
+            },
             result_code: passed ? "ok" : "E_INTERNAL",
           });
         } catch {

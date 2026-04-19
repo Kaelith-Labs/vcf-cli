@@ -80,9 +80,10 @@ export function registerTestAnalyze(server: McpServer, deps: ServerDeps): void {
         }
 
         const passed = parsed.exit_code === 0 && matches.length === 0;
-        const note = !passed && matches.length === 0
-          ? "No known failure signature matched; inspect the raw tail from test_execute."
-          : null;
+        const note =
+          !passed && matches.length === 0
+            ? "No known failure signature matched; inspect the raw tail from test_execute."
+            : null;
 
         const result: AnalyzeResult = {
           passed,
@@ -108,7 +109,11 @@ export function registerTestAnalyze(server: McpServer, deps: ServerDeps): void {
             tool: "test_analyze",
             scope: "project",
             project_root: readProjectRoot(deps),
-            inputs: { ...parsed, stdout: `<${parsed.stdout.length}B>`, stderr: `<${parsed.stderr.length}B>` },
+            inputs: {
+              ...parsed,
+              stdout: `<${parsed.stdout.length}B>`,
+              stderr: `<${parsed.stderr.length}B>`,
+            },
             outputs: payload,
             result_code: "ok",
           });
