@@ -105,6 +105,25 @@ function stableStringify(value: unknown): string {
   return "null";
 }
 
+// Module-level flag: when true, every writeAudit call also stores the
+// redacted JSON of inputs + outputs. Set once at server/CLI startup via
+// setFullAuditMode(config.audit.full_payload_storage). Off by default so
+// behavior matches the MVP "hashes only" contract unless the user opts
+// in.
+let FULL_AUDIT_MODE = false;
+
+export function setFullAuditMode(enabled: boolean): void {
+  FULL_AUDIT_MODE = enabled;
+}
+
+export function isFullAuditMode(): boolean {
+  return FULL_AUDIT_MODE;
+}
+
+function canonicalRedactedJson(value: unknown): string {
+  return stableStringify(redact(value));
+}
+
 /**
  * Append a single audit row. Called by every tool handler immediately after
  * the envelope has been produced.
@@ -112,8 +131,8 @@ function stableStringify(value: unknown): string {
 export function writeAudit(db: DatabaseType, entry: AuditEntryInput): void {
   const stmt = db.prepare(
     `INSERT INTO audit
-       (ts, tool, scope, project_root, client_id, inputs_hash, outputs_hash, endpoint, result_code)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (ts, tool, scope, project_root, client_id, inputs_hash, outputs_hash, endpoint, result_code, inputs_json, outputs_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   stmt.run(
     entry.ts ?? Date.now(),
@@ -125,5 +144,7 @@ export function writeAudit(db: DatabaseType, entry: AuditEntryInput): void {
     hashPayload(entry.outputs),
     entry.endpoint ?? null,
     entry.result_code,
+    FULL_AUDIT_MODE ? canonicalRedactedJson(entry.inputs) : null,
+    FULL_AUDIT_MODE ? canonicalRedactedJson(entry.outputs) : null,
   );
 }

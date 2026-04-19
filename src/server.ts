@@ -19,7 +19,7 @@ import { VERSION, MCP_SPEC_VERSION } from "./version.js";
 import type { Config } from "./config/schema.js";
 import type { Scope, ResolvedScope } from "./scope.js";
 import { wrapResult, success } from "./envelope.js";
-import { writeAudit } from "./util/audit.js";
+import { writeAudit, setFullAuditMode } from "./util/audit.js";
 import { log } from "./logger.js";
 import { registerIdeaCapture } from "./tools/idea_capture.js";
 import { registerIdeaSearch } from "./tools/idea_search.js";
@@ -83,6 +83,11 @@ export function describeServer(scope: Scope): ServerDescribe {
  * responsible for connecting a transport; this function does no I/O.
  */
 export function createServer(deps: ServerDeps): McpServer {
+  // Apply the operator's full-audit opt-in before any tool registers. Last
+  // caller wins in multi-server test setups — that's intentional; tests
+  // typically create a single server per setup.
+  setFullAuditMode(deps.config.audit.full_payload_storage);
+
   const server = new McpServer(
     { name: "vcf", version: VERSION },
     {

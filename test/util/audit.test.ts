@@ -3,7 +3,13 @@ import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openGlobalDb, closeTrackedDbs } from "../helpers/db-cleanup.js";
-import { writeAudit, hashPayload, redact } from "../../src/util/audit.js";
+import {
+  writeAudit,
+  hashPayload,
+  redact,
+  setFullAuditMode,
+  isFullAuditMode,
+} from "../../src/util/audit.js";
 
 describe("redact", () => {
   it("redacts AWS access keys", () => {
@@ -109,6 +115,55 @@ describe("writeAudit", () => {
       inputs_hash: string;
     }[];
     expect(rows[0].inputs_hash).toBe(rows[1].inputs_hash);
+    db.close();
+  });
+
+  it("leaves inputs_json + outputs_json NULL when full-audit mode is off (default)", () => {
+    const db = openGlobalDb({ path: join(dir, "vcf.db") });
+    setFullAuditMode(false);
+    expect(isFullAuditMode()).toBe(false);
+    writeAudit(db, {
+      tool: "idea_capture",
+      scope: "global",
+      inputs: { content: "hi" },
+      outputs: { ok: true },
+      result_code: "ok",
+    });
+    const row = db.prepare("SELECT inputs_json, outputs_json FROM audit").get() as {
+      inputs_json: string | null;
+      outputs_json: string | null;
+    };
+    expect(row.inputs_json).toBeNull();
+    expect(row.outputs_json).toBeNull();
+    db.close();
+  });
+
+  it("writes redacted JSON to inputs_json + outputs_json when full-audit mode is on", () => {
+    const db = openGlobalDb({ path: join(dir, "vcf.db") });
+    setFullAuditMode(true);
+    try {
+      writeAudit(db, {
+        tool: "idea_capture",
+        scope: "global",
+        inputs: { content: "hello", token: "AKIAIOSFODNN7EXAMPLE" },
+        outputs: { ok: true, paths: ["/abs/ideas/x.md"] },
+        result_code: "ok",
+      });
+      const row = db.prepare("SELECT inputs_json, outputs_json FROM audit").get() as {
+        inputs_json: string;
+        outputs_json: string;
+      };
+      expect(row.inputs_json).toBeTruthy();
+      expect(row.outputs_json).toBeTruthy();
+      // Secrets were redacted before storage.
+      expect(row.inputs_json).toContain("[AWS_ACCESS_KEY]");
+      expect(row.inputs_json).not.toContain("AKIAIOSFODNN7EXAMPLE");
+      // Keys survived — it's canonical JSON.
+      expect(row.inputs_json).toContain("content");
+      expect(row.outputs_json).toContain("/abs/ideas/x.md");
+    } finally {
+      setFullAuditMode(false); // don't leak to other tests
+    }
     db.close();
   });
 });

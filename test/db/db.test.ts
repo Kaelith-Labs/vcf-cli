@@ -36,7 +36,8 @@ describe("global DB", () => {
     openGlobalDb({ path: p }).close(); // no throw
     const db = openGlobalDb({ path: p });
     const rows = db.prepare("SELECT version FROM schema_migrations").all();
-    expect(rows.length).toBe(1); // only v1 applied, not N times
+    // All migrations applied exactly once; adding a new migration bumps this.
+    expect(rows.length).toBe(2);
     db.close();
   });
 

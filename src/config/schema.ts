@@ -163,6 +163,20 @@ export const TelemetrySchema = z
   })
   .strict();
 
+// ---- Audit (full-payload mode, off by default) -----------------------------
+
+export const AuditSchema = z
+  .object({
+    // When true, audit rows also store the redacted JSON of the tool's
+    // inputs + outputs (same redaction pass that runs before hashing). Off
+    // by default — the original MVP contract is hashes only. Enable for
+    // operator debugging; the DB will grow faster. Secrets are still
+    // redacted before storage, so the risk delta vs. hash-only is that the
+    // shape of the payload becomes visible.
+    full_payload_storage: z.boolean().default(false),
+  })
+  .strict();
+
 // ---- Embeddings (optional; off by default) ---------------------------------
 
 export const EmbeddingsSchema = z
@@ -209,6 +223,7 @@ export const ConfigSchema = z
       extra_patterns: [],
     }),
     telemetry: TelemetrySchema.default({ error_reporting_enabled: false }),
+    audit: AuditSchema.default({ full_payload_storage: false }),
     embeddings: EmbeddingsSchema.optional(),
   })
   .strict()

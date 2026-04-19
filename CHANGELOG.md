@@ -12,6 +12,14 @@ embedding-based primer selection, sub-agent review skill, full Windows
 
 ### Added
 
+- **Full-audit mode** (`config.audit.full_payload_storage`, default
+  `false`) — when enabled, audit rows also store the *redacted* JSON of
+  each tool call's inputs and outputs in two new nullable columns
+  (`inputs_json`, `outputs_json`). The same redaction pass that runs
+  before hashing runs before storage, so secrets don't leak; the risk
+  delta vs. hash-only is that the shape of the payload is visible.
+  `vcf admin audit --full` surfaces these columns in table / json / csv
+  output. Migration v2 adds the columns non-destructively.
 - **Custom reviewer categories** — `review.categories` in `config.yaml`
   is now fully honored at runtime. Add `"accessibility"` (or any slug)
   to the list, drop a stage file under

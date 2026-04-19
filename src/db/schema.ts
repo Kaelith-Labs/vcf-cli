@@ -85,6 +85,18 @@ export const GLOBAL_MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_audit_project ON audit(project_root);
     `,
   },
+  {
+    version: 2,
+    name: "audit_full_payload",
+    up: `
+      -- Nullable redacted-JSON columns for opt-in full-audit mode.
+      -- Populated only when config.audit.full_payload_storage = true.
+      -- Same redaction pass that runs before hashing is applied before
+      -- storage, so enabling the flag does not leak secrets.
+      ALTER TABLE audit ADD COLUMN inputs_json TEXT;
+      ALTER TABLE audit ADD COLUMN outputs_json TEXT;
+    `,
+  },
 ];
 
 export const PROJECT_MIGRATIONS: Migration[] = [

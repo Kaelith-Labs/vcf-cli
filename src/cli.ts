@@ -793,6 +793,7 @@ async function runAdminAudit(opts: {
   project?: string;
   since?: string;
   format: string;
+  full?: boolean;
 }): Promise<void> {
   // Open writable: the global DB may not exist yet on first CLI run.
   // better-sqlite3's readonly mode refuses to create, so we accept the
@@ -818,9 +819,10 @@ async function runAdminAudit(opts: {
     }
   }
   const where = clauses.length > 0 ? "WHERE " + clauses.join(" AND ") : "";
+  const extra = opts.full ? ", inputs_json, outputs_json" : "";
   const rows = globalDb
     .prepare(
-      `SELECT id, ts, tool, scope, project_root, client_id, inputs_hash, outputs_hash, endpoint, result_code
+      `SELECT id, ts, tool, scope, project_root, client_id, inputs_hash, outputs_hash, endpoint, result_code${extra}
        FROM audit ${where} ORDER BY ts DESC LIMIT 500`,
     )
     .all(...params) as Array<{
@@ -834,29 +836,34 @@ async function runAdminAudit(opts: {
     outputs_hash: string;
     endpoint: string | null;
     result_code: string;
+    inputs_json?: string | null;
+    outputs_json?: string | null;
   }>;
 
   if (opts.format === "json") {
     process.stderr.write(JSON.stringify(rows, null, 2) + "\n");
   } else if (opts.format === "csv") {
-    process.stderr.write(
-      "id,ts,tool,scope,project_root,client_id,inputs_hash,outputs_hash,endpoint,result_code\n",
-    );
+    const header = opts.full
+      ? "id,ts,tool,scope,project_root,client_id,inputs_hash,outputs_hash,endpoint,result_code,inputs_json,outputs_json\n"
+      : "id,ts,tool,scope,project_root,client_id,inputs_hash,outputs_hash,endpoint,result_code\n";
+    process.stderr.write(header);
     for (const r of rows) {
-      process.stderr.write(
-        [
-          r.id,
-          r.ts,
-          r.tool,
-          r.scope,
-          r.project_root ?? "",
-          r.client_id ?? "",
-          r.inputs_hash,
-          r.outputs_hash,
-          r.endpoint ?? "",
-          r.result_code,
-        ].join(",") + "\n",
-      );
+      const base = [
+        r.id,
+        r.ts,
+        r.tool,
+        r.scope,
+        r.project_root ?? "",
+        r.client_id ?? "",
+        r.inputs_hash,
+        r.outputs_hash,
+        r.endpoint ?? "",
+        r.result_code,
+      ];
+      const full = opts.full
+        ? [csvEscape(r.inputs_json ?? ""), csvEscape(r.outputs_json ?? "")]
+        : [];
+      process.stderr.write([...base, ...full].join(",") + "\n");
     }
   } else {
     // table
@@ -864,10 +871,23 @@ async function runAdminAudit(opts: {
       process.stderr.write(
         `${new Date(r.ts).toISOString()}  ${r.scope.padEnd(7)} ${r.tool.padEnd(26)} ${r.result_code.padEnd(16)} ${r.project_root ?? "-"}\n`,
       );
+      if (opts.full && (r.inputs_json || r.outputs_json)) {
+        process.stderr.write(`  inputs:  ${r.inputs_json ?? "(null)"}\n`);
+        process.stderr.write(`  outputs: ${r.outputs_json ?? "(null)"}\n`);
+      }
     }
-    log(`admin audit: ${rows.length} row(s)`);
+    log(
+      `admin audit: ${rows.length} row(s)${opts.full ? " (--full: includes redacted payloads when available)" : ""}`,
+    );
   }
   globalDb.close();
+}
+
+function csvEscape(s: string): string {
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
 }
 
 // ---- command wiring --------------------------------------------------------
@@ -1010,13 +1030,26 @@ admin
   .option("--project <path>")
   .option("--since <iso-date>")
   .option("--format <fmt>", "table | json | csv", "table")
-  .action(async (opts: { tool?: string; project?: string; since?: string; format: string }) => {
-    try {
-      await runAdminAudit(opts);
-    } catch (e) {
-      err((e as Error).message);
-    }
-  });
+  .option(
+    "--full",
+    "include redacted inputs/outputs JSON (only populated when config.audit.full_payload_storage is true)",
+    false,
+  )
+  .action(
+    async (opts: {
+      tool?: string;
+      project?: string;
+      since?: string;
+      format: string;
+      full?: boolean;
+    }) => {
+      try {
+        await runAdminAudit(opts);
+      } catch (e) {
+        err((e as Error).message);
+      }
+    },
+  );
 
 // Only parse argv when this file is run as the CLI entrypoint — otherwise
 // importing it from a test (or another module) would trigger a spurious
