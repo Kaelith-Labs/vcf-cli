@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { createServer } from "../../src/server.js";
-import { openGlobalDb } from "../../src/db/global.js";
+import { openGlobalDb } from "../helpers/db-cleanup.js";
 import { ConfigSchema } from "../../src/config/schema.js";
 import { clearKbCache } from "../../src/primers/load.js";
 import type { ResolvedScope } from "../../src/scope.js";

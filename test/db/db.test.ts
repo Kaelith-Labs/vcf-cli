@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openGlobalDb } from "../../src/db/global.js";
-import { openProjectDb } from "../../src/db/project.js";
+import { openGlobalDb, openProjectDb } from "../helpers/db-cleanup.js";
 
 describe("global DB", () => {
   let dir: string;

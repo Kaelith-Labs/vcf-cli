@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile, readFile, readdir, realpath } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { openProjectDb } from "../../src/db/project.js";
+import { openProjectDb } from "../helpers/db-cleanup.js";
 
 // M10 exercises the built `vcf` CLI end-to-end. We shell out to
 // dist/cli.js so packaging regressions (missing file in "files",

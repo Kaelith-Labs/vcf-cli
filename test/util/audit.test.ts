@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openGlobalDb } from "../../src/db/global.js";
+import { openGlobalDb } from "../helpers/db-cleanup.js";
 import { writeAudit, hashPayload, redact } from "../../src/util/audit.js";
 
 describe("redact", () => {
