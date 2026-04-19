@@ -12,10 +12,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest dropped until npm optional-deps rollup bug is resolved
-        # (https://github.com/npm/cli/issues/4828). Covers darwin-arm64 only;
-        # production install via npm on Mac is unaffected.
-        os: [ubuntu-latest, windows-latest]
+        # macos-latest and windows-latest dropped for MVP — npm/cli#4828
+        # (cross-platform optional-dep resolution from a Linux-generated
+        # lockfile) is the blocker. `npm install` on a clean clone works
+        # fine for end users on those platforms; the issue is specific to
+        # CI reusing a lockfile. Revisit once npm merges a fix.
+        os: [ubuntu-latest]
         node: [20, 22]
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +26,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - name: Install deps
-        # Use `npm install` rather than `npm ci` to sidestep the cross-platform
-        # optional-dep resolution bug in npm (npm/cli#4828). Strict lockfile
-        # behaviour is restored in the release workflow which only runs on ubuntu.
-        run: npm install --no-audit --no-fund
+        run: npm ci
       - name: Lint
         run: npm run lint
       - name: Typecheck
