@@ -27,6 +27,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   http / websocket / grpc / db-pool / queue. Non-fannable kinds (`unit`,
   `integration`, `regression`) remain single-stub. The spec-required 10×
   scale-target math still drives the volume stubs.
+- **`vcf update-primers` three-way merge.** The MVP warn+skip path is
+  replaced with a real three-way merge using `git merge-file` and an
+  ancestor cache at `~/.vcf/kb-ancestors/`. Outcomes per file:
+  `added` / `in-sync` / `local-only` (upstream unchanged since last sync,
+  keep edits) / `fast-forward` (local unchanged since last sync, adopt
+  upstream) / `auto-merged` (both moved, different regions) / `conflict`
+  (both moved, same region — markers written in place; no ancestor at
+  all — `.upstream` sibling written). Exits 7 when any conflict remains.
+  The spec's allowed MVP warn+skip behavior is now strictly better
+  without changing the invocation surface.
 
 ### Changed
 

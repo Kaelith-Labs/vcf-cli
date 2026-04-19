@@ -21,6 +21,7 @@ import { mkdir, writeFile, readFile, stat, readdir, copyFile } from "node:fs/pro
 import { existsSync, statSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { VERSION, MCP_SPEC_VERSION } from "./version.js";
 import { loadConfig, ConfigError } from "./config/loader.js";
 import { canonicalizeRoots } from "./util/paths.js";
@@ -461,13 +462,183 @@ async function runInstallSkills(client: string, opts: { dest?: string }): Promis
 }
 
 // ---- vcf update-primers ----------------------------------------------------
+//
+// Three-way merge (Phase-2 upgrade over the MVP's warn+skip):
+//
+//   1. An ancestor snapshot of the upstream KB at last sync lives under
+//      ~/.vcf/kb-ancestors/<same relative layout>. First run without an
+//      ancestor: the upstream tree is adopted as the baseline (local edits
+//      survive; we just can't auto-merge the first delta).
+//   2. For each upstream file <rel>:
+//        local    = ${kbRoot}/<rel>
+//        ancestor = ~/.vcf/kb-ancestors/<rel>
+//      Outcome rules:
+//        - local missing                     → copy upstream, seed ancestor   [added]
+//        - local == upstream                 → seed ancestor if needed         [in-sync]
+//        - ancestor missing                  → two sides diverged with no base → conflict (preserve local, write .upstream sibling)
+//        - ancestor == upstream              → upstream unchanged, local edits kept [local-only]
+//        - ancestor == local                 → local untouched, upstream moved → adopt upstream [fast-forward]
+//        - both sides moved from ancestor    → `git merge-file -p local ancestor upstream`
+//            • clean merge (exit 0) → write merged local, re-seed ancestor    [auto-merged]
+//            • conflict markers (exit 1) → write merged local + keep old ancestor [conflict]
+//
+// `git merge-file` is a no-new-dep choice: git is already required by the
+// framework (project_init runs `git init`; git hooks are part of the KB).
+// Using it keeps diff3 semantics identical to what every developer expects.
+
+interface MergeOutcome {
+  rel: string;
+  kind: "added" | "in-sync" | "local-only" | "fast-forward" | "auto-merged" | "conflict";
+  note?: string;
+}
+interface MergeReport {
+  outcomes: MergeOutcome[];
+  counts: Record<MergeOutcome["kind"], number>;
+}
+
+export async function mergePrimerTree(opts: {
+  kbRoot: string;
+  upstreamRoot: string;
+  ancestorRoot: string;
+  /** Optional override for tests; defaults to real git. */
+  runGitMergeFile?: (local: string, ancestor: string, upstream: string) => { exitCode: number };
+}): Promise<MergeReport> {
+  const { kbRoot, upstreamRoot, ancestorRoot } = opts;
+  const runMerge = opts.runGitMergeFile ?? defaultRunGitMergeFile;
+  await mkdir(kbRoot, { recursive: true });
+  await mkdir(ancestorRoot, { recursive: true });
+
+  const outcomes: MergeOutcome[] = [];
+  const counts: Record<MergeOutcome["kind"], number> = {
+    added: 0,
+    "in-sync": 0,
+    "local-only": 0,
+    "fast-forward": 0,
+    "auto-merged": 0,
+    conflict: 0,
+  };
+
+  const stack: string[] = [upstreamRoot];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    for (const name of await readdir(dir)) {
+      const full = join(dir, name);
+      const st = await stat(full);
+      if (st.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!name.endsWith(".md")) continue;
+      const rel = full.slice(upstreamRoot.length + 1);
+      const localPath = join(kbRoot, rel);
+      const ancestorPath = join(ancestorRoot, rel);
+
+      // Case 1: local missing — straight copy, seed ancestor.
+      if (!existsSync(localPath)) {
+        await mkdir(dirname(localPath), { recursive: true });
+        await copyFile(full, localPath);
+        await mkdir(dirname(ancestorPath), { recursive: true });
+        await copyFile(full, ancestorPath);
+        outcomes.push({ rel, kind: "added" });
+        counts.added++;
+        continue;
+      }
+
+      const [upBuf, localBuf] = await Promise.all([readFile(full), readFile(localPath)]);
+      const upHash = sha256(upBuf);
+      const localHash = sha256(localBuf);
+
+      // Case 2: already in sync.
+      if (upHash === localHash) {
+        await mkdir(dirname(ancestorPath), { recursive: true });
+        await copyFile(full, ancestorPath);
+        outcomes.push({ rel, kind: "in-sync" });
+        counts["in-sync"]++;
+        continue;
+      }
+
+      // Case 3: no ancestor — can't tell who changed. Preserve local; write
+      // .upstream sibling so the user can diff by hand.
+      if (!existsSync(ancestorPath)) {
+        await writeFile(`${localPath}.upstream`, upBuf);
+        outcomes.push({
+          rel,
+          kind: "conflict",
+          note: "no ancestor baseline; local kept, upstream written to .upstream sibling",
+        });
+        counts.conflict++;
+        continue;
+      }
+
+      const ancestorBuf = await readFile(ancestorPath);
+      const ancestorHash = sha256(ancestorBuf);
+
+      // Case 4: upstream unchanged since last sync — keep local edits.
+      if (ancestorHash === upHash) {
+        outcomes.push({ rel, kind: "local-only" });
+        counts["local-only"]++;
+        continue;
+      }
+
+      // Case 5: local unchanged since last sync — fast-forward.
+      if (ancestorHash === localHash) {
+        await copyFile(full, localPath);
+        await copyFile(full, ancestorPath);
+        outcomes.push({ rel, kind: "fast-forward" });
+        counts["fast-forward"]++;
+        continue;
+      }
+
+      // Case 6: both sides diverged — true three-way merge via git merge-file.
+      const { exitCode } = runMerge(localPath, ancestorPath, full);
+      if (exitCode === 0) {
+        // Clean auto-merge — local now holds the merged content. Re-seed ancestor.
+        await copyFile(full, ancestorPath);
+        outcomes.push({ rel, kind: "auto-merged" });
+        counts["auto-merged"]++;
+      } else {
+        // Conflict markers written into localPath by git merge-file -p ...
+        // we did NOT use -p because we want in-place edit; instead we passed
+        // the files directly and git writes markers. Keep ancestor unchanged
+        // so the user can re-run after resolving.
+        outcomes.push({
+          rel,
+          kind: "conflict",
+          note: "git merge-file emitted conflict markers — resolve in place, then re-run",
+        });
+        counts.conflict++;
+      }
+    }
+  }
+
+  return { outcomes, counts };
+}
+
+function sha256(buf: Buffer): string {
+  return createHash("sha256").update(buf).digest("hex");
+}
+
+function defaultRunGitMergeFile(
+  local: string,
+  ancestor: string,
+  upstream: string,
+): { exitCode: number } {
+  // In-place three-way merge. Git writes merged content (with conflict
+  // markers on collision) to <local> and exits 0 on clean, >0 on conflict.
+  const res = spawnSync(
+    "git",
+    ["merge-file", "-L", "local", "-L", "ancestor", "-L", "upstream", local, ancestor, upstream],
+    {
+      encoding: "utf8",
+    },
+  );
+  return { exitCode: typeof res.status === "number" ? res.status : -1 };
+}
 
 async function runUpdatePrimers(): Promise<void> {
   const config = await loadConfigOrExit();
   const kbRoot = config.kb.root;
-  // Locate the installed @kaelith-labs/kb package. In dev we prefer a sibling repo;
-  // in production we resolve via Node's module resolution from the CLI's
-  // own node_modules (best-effort — if require.resolve fails we fall back).
+  const ancestorRoot = resolvePath(homedir(), ".vcf", "kb-ancestors");
   let upstreamRoot: string | null = null;
   const candidates = [
     resolvePath(dirname(new URL(import.meta.url).pathname), "..", "..", "vcf-kb", "kb"),
@@ -475,7 +646,7 @@ async function runUpdatePrimers(): Promise<void> {
       dirname(new URL(import.meta.url).pathname),
       "..",
       "node_modules",
-      "@vcf",
+      "@kaelith-labs",
       "kb",
       "kb",
     ),
@@ -492,42 +663,21 @@ async function runUpdatePrimers(): Promise<void> {
       6,
     );
   }
-  log(`update-primers: comparing ${kbRoot} against ${upstreamRoot}`);
-  await mkdir(kbRoot, { recursive: true });
+  log(`update-primers: ${kbRoot} ← ${upstreamRoot} (ancestor: ${ancestorRoot})`);
 
-  // Walk upstream; copy new files; warn+skip on conflicts (per spec).
-  let copied = 0;
-  let skipped = 0;
-  const stack: string[] = [upstreamRoot];
-  while (stack.length > 0) {
-    const dir = stack.pop()!;
-    for (const name of await readdir(dir)) {
-      const full = join(dir, name);
-      const st = await stat(full);
-      if (st.isDirectory()) {
-        stack.push(full);
-        continue;
-      }
-      if (!name.endsWith(".md")) continue;
-      const rel = full.slice(upstreamRoot.length + 1);
-      const local = join(kbRoot, rel);
-      if (!existsSync(local)) {
-        await mkdir(dirname(local), { recursive: true });
-        await copyFile(full, local);
-        copied++;
-        continue;
-      }
-      // Conflict detection by content hash.
-      const [up, loc] = await Promise.all([readFile(full), readFile(local)]);
-      const upHash = createHash("sha256").update(up).digest("hex");
-      const locHash = createHash("sha256").update(loc).digest("hex");
-      if (upHash !== locHash) {
-        process.stderr.write(`  [CONFLICT] ${rel} — local diverges from upstream; skipped\n`);
-        skipped++;
-      }
+  const report = await mergePrimerTree({ kbRoot, upstreamRoot, ancestorRoot });
+  for (const o of report.outcomes) {
+    if (o.kind === "conflict" || o.kind === "auto-merged") {
+      process.stderr.write(`  [${o.kind.toUpperCase()}] ${o.rel}${o.note ? ` — ${o.note}` : ""}\n`);
     }
   }
-  log(`update-primers: ${copied} new / ${skipped} conflict(s) (three-way merge is Phase 2)`);
+  const c = report.counts;
+  log(
+    `update-primers: ${c.added} added, ${c["fast-forward"]} fast-forward, ${c["auto-merged"]} auto-merged, ${c["local-only"]} kept-local, ${c["in-sync"]} in-sync, ${c.conflict} conflict(s)`,
+  );
+  if (c.conflict > 0) {
+    process.exit(7);
+  }
 }
 
 // ---- vcf admin audit -------------------------------------------------------
@@ -747,6 +897,12 @@ admin
     }
   });
 
-program.parseAsync(process.argv).catch((e: unknown) => {
-  err(e instanceof Error ? e.message : String(e));
-});
+// Only parse argv when this file is run as the CLI entrypoint — otherwise
+// importing it from a test (or another module) would trigger a spurious
+// command parse against vitest's argv.
+const entryUrl = process.argv[1] ? new URL(`file://${process.argv[1]}`).href : "";
+if (import.meta.url === entryUrl) {
+  program.parseAsync(process.argv).catch((e: unknown) => {
+    err(e instanceof Error ? e.message : String(e));
+  });
+}
