@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { createServer } from "../../src/server.js";
-import { openGlobalDb, openProjectDb } from "../helpers/db-cleanup.js";
+import { openGlobalDb, openProjectDb, closeTrackedDbs } from "../helpers/db-cleanup.js";
 import { ConfigSchema } from "../../src/config/schema.js";
 import { clearKbCache } from "../../src/primers/load.js";
 import type { ResolvedScope } from "../../src/scope.js";
@@ -40,6 +40,7 @@ describe("M8 ship pipeline (project scope)", () => {
   });
 
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(workRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
     await rm(home, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });

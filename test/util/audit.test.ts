@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openGlobalDb } from "../helpers/db-cleanup.js";
+import { openGlobalDb, closeTrackedDbs } from "../helpers/db-cleanup.js";
 import { writeAudit, hashPayload, redact } from "../../src/util/audit.js";
 
 describe("redact", () => {
@@ -66,6 +66,7 @@ describe("writeAudit", () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), "vcf-audit-")));
   });
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });
 

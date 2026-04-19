@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openGlobalDb, openProjectDb } from "../helpers/db-cleanup.js";
+import { openGlobalDb, openProjectDb, closeTrackedDbs } from "../helpers/db-cleanup.js";
 
 describe("global DB", () => {
   let dir: string;
@@ -10,6 +10,7 @@ describe("global DB", () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), "vcf-dbg-")));
   });
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });
 
@@ -70,6 +71,7 @@ describe("project DB", () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), "vcf-dbp-")));
   });
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });
 

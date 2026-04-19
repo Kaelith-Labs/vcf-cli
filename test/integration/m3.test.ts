@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { createServer } from "../../src/server.js";
-import { openGlobalDb, openProjectDb } from "../helpers/db-cleanup.js";
+import { openGlobalDb, openProjectDb, closeTrackedDbs } from "../helpers/db-cleanup.js";
 import { ConfigSchema } from "../../src/config/schema.js";
 import type { ResolvedScope } from "../../src/scope.js";
 
@@ -34,6 +34,7 @@ describe("M3 end-to-end skeleton spike (global scope)", () => {
     home = await realpath(await mkdtemp(join(tmpdir(), "vcf-home-")));
   });
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(workRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
     await rm(home, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });
@@ -185,6 +186,7 @@ describe("M3 project scope (portfolio_status)", () => {
     home = await realpath(await mkdtemp(join(tmpdir(), "vcf-homep-")));
   });
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(workRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
     await rm(home, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });

@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { createServer } from "../../src/server.js";
-import { openGlobalDb, openProjectDb } from "../helpers/db-cleanup.js";
+import { openGlobalDb, openProjectDb, closeTrackedDbs } from "../helpers/db-cleanup.js";
 import { ConfigSchema } from "../../src/config/schema.js";
 import { clearKbCache } from "../../src/primers/load.js";
 import { __resetShipReleaseStoreForTests } from "../../src/tools/ship_release.js";
@@ -126,6 +126,7 @@ describe("e2e: full lifecycle", () => {
   });
 
   afterEach(async () => {
+    closeTrackedDbs();
     await rm(workRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
     await rm(home, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   });
