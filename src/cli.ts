@@ -381,18 +381,31 @@ async function runStaleCheck(): Promise<void> {
 
 // ---- vcf install-skills ----------------------------------------------------
 
-const SKILL_CLIENT_DEFAULT_DEST: Record<string, () => string> = {
-  "claude-code": () => resolvePath(homedir(), ".claude", "skills"),
-  codex: () => resolvePath(homedir(), ".agents", "skills"),
+type SkillLayout = "nested-md" | "flat-toml";
+interface SkillClientSpec {
+  defaultDest: () => string;
+  layout: SkillLayout;
+}
+
+const SKILL_CLIENTS: Record<string, SkillClientSpec> = {
+  "claude-code": {
+    defaultDest: () => resolvePath(homedir(), ".claude", "skills"),
+    layout: "nested-md",
+  },
+  codex: {
+    defaultDest: () => resolvePath(homedir(), ".agents", "skills"),
+    layout: "nested-md",
+  },
+  gemini: {
+    defaultDest: () => resolvePath(homedir(), ".gemini", "commands"),
+    layout: "flat-toml",
+  },
 };
 
 async function runInstallSkills(client: string, opts: { dest?: string }): Promise<void> {
-  const defaultDestFn = SKILL_CLIENT_DEFAULT_DEST[client];
-  if (!defaultDestFn) {
-    err(
-      `unknown client '${client}' — supported: ${Object.keys(SKILL_CLIENT_DEFAULT_DEST).join(", ")}`,
-      2,
-    );
+  const spec = SKILL_CLIENTS[client];
+  if (!spec) {
+    err(`unknown client '${client}' — supported: ${Object.keys(SKILL_CLIENTS).join(", ")}`, 2);
   }
   // Resolve packaged skills dir (one level up from dist/).
   const pkgSkillsDir = resolvePath(
@@ -404,27 +417,45 @@ async function runInstallSkills(client: string, opts: { dest?: string }): Promis
   if (!existsSync(pkgSkillsDir)) {
     err(`skill pack missing in package at ${pkgSkillsDir}`, 3);
   }
-  const dest = opts.dest ?? defaultDestFn();
+  const dest = opts.dest ?? spec.defaultDest();
   await mkdir(dest, { recursive: true });
 
   let installed = 0;
   let skipped = 0;
-  for (const name of await readdir(pkgSkillsDir)) {
-    const src = join(pkgSkillsDir, name);
-    const st = await stat(src);
-    if (!st.isDirectory()) continue;
-    const dstDir = join(dest, name);
-    if (existsSync(dstDir)) {
-      log(`${dstDir} exists — skipping (edit manually or remove to reinstall)`);
-      skipped++;
-      continue;
+  const entries = await readdir(pkgSkillsDir);
+
+  if (spec.layout === "nested-md") {
+    for (const name of entries) {
+      const src = join(pkgSkillsDir, name);
+      const st = await stat(src);
+      if (!st.isDirectory()) continue;
+      const dstDir = join(dest, name);
+      if (existsSync(dstDir)) {
+        log(`${dstDir} exists — skipping (edit manually or remove to reinstall)`);
+        skipped++;
+        continue;
+      }
+      await mkdir(dstDir, { recursive: true });
+      const skillFile = join(src, "SKILL.md");
+      if (existsSync(skillFile)) {
+        await copyFile(skillFile, join(dstDir, "SKILL.md"));
+      }
+      installed++;
     }
-    await mkdir(dstDir, { recursive: true });
-    const skillFile = join(src, "SKILL.md");
-    if (existsSync(skillFile)) {
-      await copyFile(skillFile, join(dstDir, "SKILL.md"));
+  } else {
+    // flat-toml: each <name>.toml in pkg dir copies to <dest>/<name>.toml.
+    for (const name of entries) {
+      if (!name.endsWith(".toml")) continue;
+      const src = join(pkgSkillsDir, name);
+      const dst = join(dest, name);
+      if (existsSync(dst)) {
+        log(`${dst} exists — skipping (edit manually or remove to reinstall)`);
+        skipped++;
+        continue;
+      }
+      await copyFile(src, dst);
+      installed++;
     }
-    installed++;
   }
   log(`install-skills: ${installed} installed, ${skipped} skipped at ${dest}`);
 }
@@ -672,12 +703,12 @@ program
 program
   .command("install-skills")
   .description(
-    "Install the shipped skill pack into an MCP client's skills directory. Supported clients: claude-code, codex.",
+    "Install the shipped skill pack into an MCP client's skills directory. Supported clients: claude-code, codex, gemini.",
   )
-  .argument("<client>", "target client (claude-code | codex)")
+  .argument("<client>", "target client (claude-code | codex | gemini)")
   .option(
     "--dest <path>",
-    "skills directory (default: ~/.claude/skills for claude-code, ~/.agents/skills for codex)",
+    "skills directory (defaults: ~/.claude/skills, ~/.agents/skills, or ~/.gemini/commands per client)",
   )
   .action(async (client: string, opts: { dest?: string }) => {
     try {

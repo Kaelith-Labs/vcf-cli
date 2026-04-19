@@ -34,11 +34,12 @@ This:
 - creates `~/.vcf/vcf.db` on first tool call
 
 ```bash
-vcf install-skills claude-code   # → ~/.claude/skills/
-vcf install-skills codex         # → ~/.agents/skills/ (also read by project-scope .agents/skills/)
+vcf install-skills claude-code   # → ~/.claude/skills/<name>/SKILL.md
+vcf install-skills codex         # → ~/.agents/skills/<name>/SKILL.md  (also read from project-scope .agents/skills/)
+vcf install-skills gemini        # → ~/.gemini/commands/<name>.toml    (also read from project-scope .gemini/commands/)
 ```
 
-Copies the 15-skill pack into the client's skills directory. Re-running is idempotent — existing skill dirs are skipped so your edits aren't clobbered.
+Copies the 15-skill pack into the client's skills/commands directory. Claude Code and Codex use the open agent-skills `SKILL.md` format; Gemini CLI uses `.toml` custom slash-commands. Re-running is idempotent — existing entries are skipped so your edits aren't clobbered.
 
 ## Lifecycle walk-through
 

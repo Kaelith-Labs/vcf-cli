@@ -1,0 +1,24 @@
+description = "Read back the three plan artifacts to the user and mark the project ready to build via plan_save (state=building). Triggers on \"accept plan\", \"/accept-plan\"."
+
+prompt = """
+# Accept Plan
+
+Review the saved plan with the user and explicitly advance `project.state` to `building`.
+
+## When to use
+
+- User invokes `/accept-plan [<name>]` or says: *"accept the plan"*, *"plan looks good, let's build"*.
+- Requires a prior `/plan` run (plan files already on disk).
+
+## What to do
+
+1. Call `plan_get({ name, expand: true })`. If any file is missing, stop and tell the user to run `/plan` first.
+2. Read back a short summary: phase count, review gates named, compaction points, test plan highlights. Ask the user to confirm.
+3. On confirmation, re-save with `plan_save({ name, plan, todo, manifest, advance_state: "building", force: true })` — this transitions the project to `building` state.
+4. Call `portfolio_status({ expand: true })` and relay the `next_action`.
+
+## Reminders
+
+- If the plan is missing a named test for any user-input path, a 10× volume test, or a ship-audit owner, flag it before advancing.
+- `advance_state: "building"` is the only way to leave `planning`.
+"""

@@ -13,11 +13,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   [developers.openai.com/codex/skills](https://developers.openai.com/codex/skills)).
   Same SKILL.md format as the Claude Code pack (open agent-skills standard);
   only the invocation hint differs (`$capture-idea` vs `/capture-idea`).
+- **Gemini CLI skill pack** (15 commands) + `vcf install-skills gemini` —
+  installs into `~/.gemini/commands/` as flat `<name>.toml` custom
+  slash-commands per
+  [geminicli.com/docs/cli/custom-commands](https://geminicli.com/docs/cli/custom-commands/).
+  Each command exposes a `description` for `/help` and a `prompt` that
+  instructs Gemini to call the matching MCP tool.
 
 ### Changed
 
-- `vcf install-skills` now accepts `codex` in addition to `claude-code`;
-  unknown clients exit with a supported-list error.
+- `vcf install-skills` now accepts `claude-code`, `codex`, and `gemini`
+  (two nested-markdown layouts + one flat-TOML layout); unknown clients
+  exit with a supported-list error.
 
 ## [0.0.1-alpha.0] — 2026-04-19
 

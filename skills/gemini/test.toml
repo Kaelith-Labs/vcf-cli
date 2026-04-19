@@ -1,0 +1,24 @@
+description = "Drive the three-part test pipeline (generate, execute, analyze). Triggers on \"run tests\", \"test this\", \"/test\"."
+
+prompt = """
+# Test
+
+Drive `test_generate → test_execute → test_analyze` in sequence.
+
+## When to use
+
+- User invokes `/test [<runner>]` or says *"run tests"*, *"test this"*, *"hammer it"*.
+- Requires project-scope MCP.
+
+## What to do
+
+1. **Generate stubs** (if not already present): `test_generate({ kinds: ["unit", "integration", ...], dependency?, scale_target?, expand: true })`. Write the stub bodies to disk (`tests/<kind>/TODO-*`). The stubs are a starting point; you still fill them.
+2. **Execute** against the configured runner: `test_execute({ command: "pytest" | "npx vitest run" | ..., args: [...], cwd: "<project>", timeout_ms: 120000, expand: true })`.
+3. **Analyze** the output: `test_analyze({ stdout, stderr, exit_code, expand: true })`. Report `passed` + `failure_count`; if failures, pull the first 10 lines by name.
+
+## Rules
+
+- Per the plan's test layer: every external dependency needs its own test file; every user-input path needs a prompt-injection test; every named scale target needs a volume test at 10×.
+- Mocks whose return shape mirrors the implementation assumption are tautologies. Don't ship them.
+- On failure, stop. Don't delete or skip tests to go green.
+"""

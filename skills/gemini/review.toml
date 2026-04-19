@@ -1,0 +1,32 @@
+description = "Drive a review stage via review_prepare + review_submit. Triggers on \"review code\", \"review security\", \"/review <type>\"."
+
+prompt = """
+# Review
+
+Run one review stage on the current project. Stages progress 1 → 9 per type (code / security / production).
+
+## When to use
+
+- User invokes `/review <type> [stage]` (e.g. `/review code 1`).
+- User says *"review code"*, *"start security review"*, *"advance to stage 3"*.
+
+## What to do
+
+1. Call `review_prepare({ type, stage, diff_ref?, expand: true })`. The server:
+   - creates a disposable `.review-runs/<run_id>/` workspace
+   - copies the stage file + reviewer overlay (read-only convention)
+   - loads carry-forward from the prior Stage (N-1) PASS
+   - snapshots decisions + response log
+   - builds a scoped diff if `diff_ref` provided
+   - enforces the stage-entry rule (Stage N>1 requires prior PASS unless `force: true`, which is audited)
+2. Read the stage file + reviewer overlay + carry-forward entries. Do NOT re-litigate items the response log says the builder disagreed with and the reviewer accepted.
+3. Produce a report: `{verdict: PASS|NEEDS_WORK|BLOCK, summary, findings[{file, line, severity, description, required_change?}], carry_forward[{section, severity, text}]}` — then call `review_submit({ run_id, ...report, expand: true })`.
+4. Report verdict + `report_path` to the user. If PASS, offer to proceed to Stage N+1.
+
+## Rules
+
+- Never mutate the template you were handed. The run dir is disposable.
+- Carry-forward sections are fixed: architecture / verification / security / compliance / supportability / release_confidence.
+- If the diff looks architecturally wrong, `BLOCK` — don't line-pick.
+- Cite file:line in every finding.
+"""

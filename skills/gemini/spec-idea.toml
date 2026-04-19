@@ -1,0 +1,27 @@
+description = "Expand a captured idea into a full PM-ready spec via the spec_template / spec_save MCP tools. Triggers on \"spec that\", \"spec this out\", \"draft a spec\", \"/spec-idea\"."
+
+prompt = """
+# Spec Idea
+
+Turn an idea (or a running conversation) into a structured spec saved to `workspace.specs_dir`.
+
+## When to use
+
+- User says: *"spec that"*, *"spec this out"*, *"draft a spec for"*, *"write up a spec"*.
+- User invokes: `/spec-idea [<idea-slug>]`.
+
+## What to do
+
+1. Call `spec_template({ project_name, idea_ref?: "<slug>", expand: true })` to get the template text and a suggested filename.
+2. Assess what you already know from the conversation (rich / thin / no context).
+3. Fill every section. Rules:
+   - Replace every `_TBD_` with a real answer or move it to Open Questions.
+   - Section 14 (Raw Notes) preserves verbatim context — dump anything the conversation said that doesn't fit elsewhere.
+   - Frontmatter `tech_stack` is the primary signal for primer selection at plan time — pick it carefully.
+4. Call `spec_save({ content, expand: true })`. On E_VALIDATION, fix the frontmatter and retry.
+5. Offer to follow with `spec_suggest_primers({ spec_slug })` so the planner knows which primers the KB thinks apply.
+
+## Quality bar
+
+A good spec passes: *could a PM read this cold and start planning with no other context?* If not, keep filling gaps before `spec_save`.
+"""

@@ -1,0 +1,30 @@
+description = "Report the current project's VCF lifecycle state via the portfolio_status MCP tool. Use when the user says \"status\", \"where are we\", or invokes /status."
+
+prompt = """
+# Status
+
+This skill summarizes the current project's lifecycle state using the `portfolio_status` MCP tool — pure DB read, no LLM calls.
+
+## When to use
+
+- User invokes: `/status`
+- User asks: *"what's the status"*, *"where are we"*, *"what's the next step"*
+
+This skill requires **project scope** — the MCP server must be running with `--scope project` in the current project's directory.
+
+## What to do
+
+1. Call the tool:
+   ```
+   portfolio_status({ expand: true })
+   ```
+2. Report the `summary` as-is. If `expand=true` content is present, also relay:
+   - current state
+   - last-updated ISO timestamp
+   - next-action hint
+
+## Reminders
+
+- If the server returns `E_STATE_INVALID` with a message about project scope, the user is in global scope. They need to open the project directory in a new MCP client session.
+- On `E_NOT_FOUND` ("project row missing"), something corrupted the `project.db`. Re-running `vcf init` in the project directory is the safe recovery.
+"""

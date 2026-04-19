@@ -1,0 +1,39 @@
+description = "Scaffold a new Vibe Coding Framework project directory via the project_init MCP tool. Use when the user says \"initialize project\", \"set up the project\", or invokes /initialize-project."
+
+prompt = """
+# Initialize Project
+
+This skill creates a new VCF-MCP-shaped project directory using the `project_init` MCP tool. It wires the project-scope MCP server via a project-local `.mcp.json`, scaffolds templates (AGENTS.md, CLAUDE.md, TOOLS.md, MEMORY.md, README.md, CHANGELOG.md, .gitignore), creates the `plans/memory/docs/skills/backups` dirs, initializes the project's SQLite DB, runs `git init`, and installs git hooks.
+
+## When to use
+
+- User invokes: `/initialize-project <name> <target-dir>`
+- User says: *"initialize project"*, *"set up the project"*, *"scaffold the project"*
+
+Do **not** use this skill:
+- When the project is already initialized (`.vcf/project.db` exists) — use `/status` to check.
+- Outside the user's configured `workspace.allowed_roots` — the tool will reject with `E_SCOPE_DENIED`.
+
+## What to do
+
+1. Confirm with the user:
+   - **Project name** (human-readable, e.g. "Acme Dashboard").
+   - **Target directory** (absolute path, inside `allowed_roots`).
+   - **Spec path** (optional, absolute) if they want an existing spec copied into `plans/`.
+2. Call the MCP tool:
+   ```
+   project_init({
+     name: "Acme Dashboard",
+     target_dir: "/home/user/projects/acme-dashboard",
+     spec_path: "/home/user/vcf/specs/2026-04-18-acme.md",   // optional
+     force: false                                             // true only on confirmed merge
+   })
+   ```
+3. Relay the `summary` to the user; offer to open the new directory in a fresh MCP client session so project-scope tools become available.
+4. If the tool returns `E_ALREADY_EXISTS`, ask the user whether to re-run with `force=true` (existing files are never overwritten — only additions).
+
+## Reminders
+
+- The tool returns a condensed path list by default. For the full file list, re-call with `expand=true`.
+- `project_init` is in **global** scope. After initialization, the user must open a **new** MCP client session inside the new project directory to access the project-scope tools (`plan_*`, `build_*`, `test_*`, `review_*`, `ship_*`, `portfolio_status`).
+"""
