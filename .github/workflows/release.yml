@@ -76,3 +76,28 @@ jobs:
               --title "$TAG" \
               --generate-notes \
               --notes "Pinned: MCP spec 2025-11-25 · @modelcontextprotocol/sdk ^1.29"
+
+  bump-brew:
+    # Fire a repository_dispatch at Kaelith-Labs/homebrew-vcf so its
+    # bump.yml workflow pulls the just-published tarball and updates
+    # Formula/vcf-cli.rb. Needs a PAT with repo:write on homebrew-vcf
+    # stored as BREW_DISPATCH_TOKEN. Step is a no-op if the secret is
+    # missing — we skip rather than fail the release.
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: Dispatch formula bump
+        env:
+          BREW_DISPATCH_TOKEN: ${{ secrets.BREW_DISPATCH_TOKEN }}
+        run: |
+          if [[ -z "${BREW_DISPATCH_TOKEN}" ]]; then
+            echo "BREW_DISPATCH_TOKEN not set — skipping brew bump dispatch."
+            exit 0
+          fi
+          TAG="${GITHUB_REF_NAME#v}"
+          curl -fsSL \
+            -X POST \
+            -H "Authorization: Bearer ${BREW_DISPATCH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/Kaelith-Labs/homebrew-vcf/dispatches \
+            -d "{\"event_type\":\"cli-release\",\"client_payload\":{\"version\":\"${TAG}\"}}"
