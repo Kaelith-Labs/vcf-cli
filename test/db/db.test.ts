@@ -11,7 +11,7 @@ describe("global DB", () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), "vcf-dbg-")));
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("creates expected tables on fresh init", () => {
@@ -71,7 +71,7 @@ describe("project DB", () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), "vcf-dbp-")));
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("creates expected tables on fresh init", () => {

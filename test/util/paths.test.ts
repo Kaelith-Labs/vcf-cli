@@ -27,7 +27,7 @@ describe("assertInsideAllowedRoot", () => {
   });
 
   afterAll(async () => {
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("accepts a path inside the allowed root", async () => {
@@ -113,7 +113,7 @@ describe("canonicalizeRoots", () => {
     await symlink(real, link, "dir");
     const [out] = await canonicalizeRoots([link]);
     expect(out).toBe(real);
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("throws on non-absolute roots", async () => {

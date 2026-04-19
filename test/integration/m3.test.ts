@@ -35,8 +35,8 @@ describe("M3 end-to-end skeleton spike (global scope)", () => {
     home = await realpath(await mkdtemp(join(tmpdir(), "vcf-home-")));
   });
   afterEach(async () => {
-    await rm(workRoot, { recursive: true, force: true });
-    await rm(home, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   function makeConfig() {
@@ -186,8 +186,8 @@ describe("M3 project scope (portfolio_status)", () => {
     home = await realpath(await mkdtemp(join(tmpdir(), "vcf-homep-")));
   });
   afterEach(async () => {
-    await rm(workRoot, { recursive: true, force: true });
-    await rm(home, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("portfolio_status returns state=draft after project_init", async () => {

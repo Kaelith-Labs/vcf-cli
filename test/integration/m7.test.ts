@@ -88,8 +88,8 @@ describe("M7 review subsystem (project scope)", () => {
   });
 
   afterEach(async () => {
-    await rm(workRoot, { recursive: true, force: true });
-    await rm(home, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   function makeConfig() {

@@ -66,7 +66,7 @@ describe("writeAudit", () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), "vcf-audit-")));
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("appends a row with hashed payloads", () => {

@@ -82,8 +82,8 @@ describe("M4 global-scope fan-out", () => {
   });
 
   afterEach(async () => {
-    await rm(workRoot, { recursive: true, force: true });
-    await rm(home, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   async function connectGlobal() {

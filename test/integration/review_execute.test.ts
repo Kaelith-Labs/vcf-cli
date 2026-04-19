@@ -87,8 +87,8 @@ describe("review_execute (server-side LLM review)", () => {
 
   afterEach(async () => {
     vi.unstubAllGlobals();
-    await rm(workRoot, { recursive: true, force: true });
-    await rm(home, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   function makeConfig(extraEndpoints: unknown[] = []) {

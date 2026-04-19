@@ -61,7 +61,7 @@ describe("embedding cache round-trip", () => {
     cacheDir = await realpath(await mkdtemp(join(tmpdir(), "vcf-embed-")));
   });
   afterEach(async () => {
-    await rm(cacheDir, { recursive: true, force: true });
+    await rm(cacheDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("empty cache returns empty map", async () => {
