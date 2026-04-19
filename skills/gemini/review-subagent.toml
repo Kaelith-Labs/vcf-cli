@@ -1,0 +1,88 @@
+description = "Delegate a review stage to a fresh sub-agent with its own context window. Triggers on \"review in a sub-agent\", \"delegate review\", \"send a sonnet agent to review\", \"/review-subagent\"."
+
+prompt = """
+
+# Review — delegate to a sub-agent
+
+Spawn a fresh sub-agent to run one review stage. The sub-agent reads the stage context + reviewer overlay through MCP, reasons, writes the report via `review_submit` — all in its own context window. The parent agent stays clean.
+
+## When to use
+
+- The parent context is long or noisy and you want the review work isolated.
+- You want the parent agent to keep working on other things while the review runs.
+- User invokes `/review-subagent <type> [stage]` or says *"review in a sub-agent"*, *"send a sonnet agent to review"*, *"delegate this review"*.
+
+## What to do (parent agent)
+
+1. Parse `<type>` ∈ {code, security, production}; default stage to the next unsubmitted stage in that chain (call `review_history` if you need to resolve it).
+2. Spawn a sub-agent using your client's sub-agent mechanism. Gemini CLI has no documented sub-agent spawn primitive as of this writing, so in a pure-Gemini session you will likely fall back to `/review` (the single-agent path). If you are driving Gemini through a multi-agent orchestrator that does support delegation, pass the prompt below verbatim, substituting `<type>`, `<stage>`, and `<plan-name>` if known.
+3. When the sub-agent returns, read the `report_path` it wrote to, summarize verdict + blocker count to the user, and offer the next step (e.g. "Stage 1 PASSed; ready for Stage 2?" on PASS; "Stage 1 BLOCKed on N blockers; fix and re-run?" on BLOCK).
+
+## Sub-agent prompt (pass verbatim)
+
+```
+You are an independent reviewer spawned to run a single review stage. Your
+context is fresh — you do NOT inherit what the parent agent was working on.
+You have access to the same MCP tools the parent has (review_prepare,
+review_submit, plus any others).
+
+Run this sequence:
+
+1. **Optional manifest pull.** If the parent mentioned a plan name, try
+   reading `plans/<plan-name>-manifest.md` for a file-by-file map of what
+   was built. If the file is missing or no plan name was given, continue
+   without error — the manifest is optional context, never a prerequisite.
+
+2. **Prepare the run.** Call `review_prepare({ type: "<type>", stage: <stage>,
+   diff_ref?: "<ref>", expand: true })` through MCP. The server creates a
+   disposable `.review-runs/<run_id>/` workspace and returns paths to:
+   - `stage-<N>.<type>.md` — the "what to check" for this stage
+   - `reviewer-<type>.md` — your role/overlay (hard rules, severity bar,
+     redaction policy, what to BLOCK vs NEEDS_WORK on)
+   - `carry-forward.yaml` — findings from prior-stage PASS to respect
+   - `decisions.snapshot.md` — ADR-lite decisions you must not override
+     unless they conflict with a compliance obligation
+   - `response-log.snapshot.md` — prior disagreements the builder has
+     justified; respect verified ones, do NOT re-flag them
+   - `scoped-diff.patch` — what to review (may be absent if no diff_ref)
+
+3. **Read every returned file.** Do NOT mutate any of them. The run dir is
+   a disposable copy.
+
+4. **Do the review.** Produce:
+   - `verdict`: "PASS" | "NEEDS_WORK" | "BLOCK"
+   - `summary`: 4-4000 char description
+   - `findings`: list of { file, line?, severity: info|warning|blocker,
+     description, required_change? } — cite file:line in every finding
+   - `carry_forward`: list of { section: architecture|verification|
+     security|compliance|supportability|release_confidence,
+     severity: info|warning|blocker, text } — what the NEXT stage needs
+     to know about your pass
+
+   Obey every hard rule in the reviewer overlay. BLOCK on architectural
+   compromise, not line-picking. Redact any secret shape in quoted lines.
+
+5. **Submit the verdict.** Call `review_submit({ run_id, verdict, summary,
+   findings, carry_forward })` through MCP. The server writes
+   `plans/reviews/<type>/stage-<N>-<ts>.md` and updates the run row.
+
+6. **Return one concise summary to the parent**: just verdict +
+   `report_path` + blocker count. Do NOT dump all findings — the parent
+   will read the file.
+```
+
+## Why this vs `/review` or `/review-execute`?
+
+- **`/review`** — review runs in the parent agent's context. Fast, simple, but loads stage files + diff into the main window. Use when you're about to compact or don't mind the context cost.
+- **`/review-subagent`** — review runs in a fresh sub-agent. Isolates context cost from the main session. Use when the parent is busy or the session is long. *(This skill.)*
+- **`/review-execute`** — server calls a configured OpenAI-compatible endpoint directly (Ollama / OpenRouter / etc.). No client LLM in the loop. Use when you want offloaded cost or a deterministic reviewer model.
+
+All three paths write the **same** `plans/reviews/<type>/stage-<N>-<ts>.md` file and go through the same carry-forward + DB update logic.
+
+## Reminders
+
+- The sub-agent MUST call `review_prepare` and `review_submit` through MCP — never write review files directly. The server enforces disposability and path safety.
+- `plans/<plan-name>-manifest.md` is optional. Missing file is not an error.
+- If Claude Code's `Task` tool is unavailable in the current environment (e.g. the parent agent doesn't have it exposed), fall back to `/review` and note the fallback to the user.
+- The sub-agent's context is empty at spawn. If there's project-specific knowledge the parent discussed, capture the relevant bits in the prompt — don't expect the sub-agent to guess.
+"""

@@ -31,3 +31,8 @@ Run one review stage on the current project. Stages progress 1 → 9 per type (c
 - Carry-forward sections are fixed: architecture / verification / security / compliance / supportability / release_confidence.
 - If the diff looks architecturally wrong, `BLOCK` — don't line-pick.
 - Cite file:line in every finding.
+
+## Variants
+
+- **`/review-subagent`** — same flow, but delegates the work to a fresh sub-agent so the parent context stays clean. Use for long sessions or when the parent is doing something else.
+- **`/review-execute`** — no client LLM in the loop; the server calls a configured OpenAI-compatible endpoint (Ollama / OpenRouter / etc.) directly. Use for offloaded cost or deterministic reviewer models.

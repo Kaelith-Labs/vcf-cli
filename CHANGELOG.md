@@ -74,6 +74,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   fallback branches).
 - 174 tests green (was 162).
 
+## [Unreleased]
+
+### Added
+
+- **`/review-subagent` skill** (claude-code + codex + gemini) — completes
+  the three-path review story: `/review` (parent agent reviews in-context),
+  `/review-subagent` (parent spawns a fresh sub-agent that calls MCP
+  tools itself, report file lands in the same `plans/reviews/` tree),
+  `/review-execute` (server calls a configured HTTP endpoint, no client
+  LLM). The skill is client-side prose — the MCP server already supports
+  all three via the existing `review_prepare` + `review_submit` pair.
+  The sub-agent prompt optionally pulls `plans/<plan-name>-manifest.md`
+  when available (not an error if missing), then drives the disposable
+  workspace end-to-end on its own.
+- `/review` skill gains a "Variants" section listing all three paths.
+
 ## [0.0.2-alpha.0] — 2026-04-19
 
 ### Added
