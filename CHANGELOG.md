@@ -12,6 +12,14 @@ embedding-based primer selection, sub-agent review skill, full Windows
 
 ### Added
 
+- **Homebrew tap + Scoop bucket** — install paths beyond npm:
+  - `brew tap kaelith-labs/vcf && brew install vcf-cli` (formula in
+    [Kaelith-Labs/homebrew-vcf](https://github.com/Kaelith-Labs/homebrew-vcf))
+  - `scoop bucket add kaelith-labs https://github.com/Kaelith-Labs/scoop-vcf && scoop install vcf-cli`
+    (manifest in [Kaelith-Labs/scoop-vcf](https://github.com/Kaelith-Labs/scoop-vcf))
+  Both pin the current alpha tarball for reproducibility. Scoop
+  auto-updates via `checkver` on the npm `alpha` dist-tag; Homebrew is
+  manual until we cut 1.0.
 - **Full-audit mode** (`config.audit.full_payload_storage`, default
   `false`) — when enabled, audit rows also store the *redacted* JSON of
   each tool call's inputs and outputs in two new nullable columns

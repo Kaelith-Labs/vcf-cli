@@ -13,10 +13,23 @@ The **Vibe Coding Framework MCP** — an LLM-agnostic Model Context Protocol ser
 
 ---
 
-## Install (once published)
+## Install
 
 ```bash
-npm install -g @kaelith-labs/cli
+# npm (any OS; the primary channel)
+npm install -g @kaelith-labs/cli@alpha
+```
+
+```bash
+# Homebrew (macOS / Linux)
+brew tap kaelith-labs/vcf
+brew install vcf-cli
+```
+
+```powershell
+# Scoop (Windows)
+scoop bucket add kaelith-labs https://github.com/Kaelith-Labs/scoop-vcf
+scoop install vcf-cli
 ```
 
 Two bins land: `vcf` (maintenance CLI) and `vcf-mcp` (stdio MCP server).
