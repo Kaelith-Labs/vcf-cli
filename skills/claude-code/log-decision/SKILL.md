@@ -1,0 +1,25 @@
+---
+name: log-decision
+description: Capture a non-trivial design call as an ADR-lite entry via decision_log_add. Triggers on "log this decision", "ADR", "/log-decision".
+---
+
+# Log Decision
+
+Write an ADR-lite for any design call the plan didn't make for you.
+
+## When to use
+
+- User invokes `/log-decision` or says *"log this decision"*, *"write an ADR"*.
+- A builder about to make a non-trivial call must stop, discuss with the user, and log the decision before proceeding.
+
+## What to do
+
+1. Ask the user to confirm: title, one-paragraph context, the decision text, and the consequences.
+2. Call `decision_log_add({ title, context, decision, consequences, status: "accepted", supersedes?: "<prior-slug>", expand: true })`.
+3. Report the written path.
+
+## Rules
+
+- Status defaults to `accepted`. Use `proposed` only if the decision is still under discussion.
+- Never edit a prior ADR's file — add a new entry with `supersedes: "<slug>"` if the earlier call is being replaced.
+- One decision per entry. Don't batch.

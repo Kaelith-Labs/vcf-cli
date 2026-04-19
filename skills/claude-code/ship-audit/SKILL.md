@@ -1,0 +1,29 @@
+---
+name: ship-audit
+description: Run the pre-release audit passes via ship_audit. Triggers on "ship audit", "/ship-audit".
+---
+
+# Ship Audit
+
+Final pre-release gate: 6 passes over the project tree.
+
+## When to use
+
+- User invokes `/ship-audit`.
+- Requires project-scope MCP.
+
+## What to do
+
+1. Call `ship_audit({ fail_fast: true, expand: true })`.
+2. Report the `summary` line plus, if any pass blocked, the first finding per failing pass. Cite `file:line`.
+3. Offer to re-run specific passes with `include: ["hardcoded-path"]` etc. once fixes land.
+
+## Interpreting passes
+
+- **hardcoded-path** / **secrets** / **test-data-residue** / **config-completeness** → blocker-class. Cannot ship with findings here.
+- **personal-data** / **stale-security-todos** → warning-class. Acceptable to ship but should be triaged.
+- A `gitleaks not found` note is common; install gitleaks for higher secret-scan recall.
+
+## After green audit
+
+- Call `portfolio_status` to see the suggested next action; typically `/ship-build`.

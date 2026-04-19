@@ -379,6 +379,47 @@ async function runStaleCheck(): Promise<void> {
   );
 }
 
+// ---- vcf install-skills ----------------------------------------------------
+
+async function runInstallSkills(client: string, opts: { dest?: string }): Promise<void> {
+  if (client !== "claude-code") {
+    err(`unknown client '${client}' — supported: claude-code`, 2);
+  }
+  // Resolve packaged skills dir (one level up from dist/).
+  const pkgSkillsDir = resolvePath(
+    dirname(new URL(import.meta.url).pathname),
+    "..",
+    "skills",
+    client,
+  );
+  if (!existsSync(pkgSkillsDir)) {
+    err(`skill pack missing in package at ${pkgSkillsDir}`, 3);
+  }
+  const dest = opts.dest ?? resolvePath(homedir(), ".claude", "skills");
+  await mkdir(dest, { recursive: true });
+
+  let installed = 0;
+  let skipped = 0;
+  for (const name of await readdir(pkgSkillsDir)) {
+    const src = join(pkgSkillsDir, name);
+    const st = await stat(src);
+    if (!st.isDirectory()) continue;
+    const dstDir = join(dest, name);
+    if (existsSync(dstDir)) {
+      log(`${dstDir} exists — skipping (edit manually or remove to reinstall)`);
+      skipped++;
+      continue;
+    }
+    await mkdir(dstDir, { recursive: true });
+    const skillFile = join(src, "SKILL.md");
+    if (existsSync(skillFile)) {
+      await copyFile(skillFile, join(dstDir, "SKILL.md"));
+    }
+    installed++;
+  }
+  log(`install-skills: ${installed} installed, ${skipped} skipped at ${dest}`);
+}
+
 // ---- vcf update-primers ----------------------------------------------------
 
 async function runUpdatePrimers(): Promise<void> {
@@ -614,6 +655,21 @@ program
   .action(async () => {
     try {
       await runStaleCheck();
+    } catch (e) {
+      err((e as Error).message);
+    }
+  });
+
+program
+  .command("install-skills")
+  .description(
+    "Install the shipped skill pack into an MCP client's skills directory. Currently supports: claude-code.",
+  )
+  .argument("<client>", "target client (claude-code)")
+  .option("--dest <path>", "skills directory (default: ~/.claude/skills for claude-code)")
+  .action(async (client: string, opts: { dest?: string }) => {
+    try {
+      await runInstallSkills(client, opts);
     } catch (e) {
       err((e as Error).message);
     }
