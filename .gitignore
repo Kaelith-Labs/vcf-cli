@@ -1,9 +1,3 @@
-# .github/workflows/ is intentionally ignored until the gh OAuth token on
-# this machine gets the `workflow` scope (run: gh auth refresh -s workflow).
-# The files exist locally and will be pushed in a later commit once the
-# scope is granted.
-.github/workflows/
-
 node_modules
 dist
 coverage
