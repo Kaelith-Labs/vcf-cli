@@ -45,6 +45,7 @@ import { registerReviewSubmit } from "./tools/review_submit.js";
 import { registerReviewHistory } from "./tools/review_history.js";
 import { registerShipAudit } from "./tools/ship_audit.js";
 import { registerShipBuild } from "./tools/ship_build.js";
+import { registerShipRelease } from "./tools/ship_release.js";
 import {
   registerConfigGet,
   registerEndpointList,
@@ -167,6 +168,7 @@ export function createServer(deps: ServerDeps): McpServer {
     registerReviewHistory(server, deps);
     registerShipAudit(server, deps);
     registerShipBuild(server, deps);
+    registerShipRelease(server, deps);
   }
 
   // Catalog (read-only) — available under both scopes; context is cheap and
