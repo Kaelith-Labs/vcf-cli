@@ -692,6 +692,181 @@ async function runPackRemove(name: string): Promise<void> {
   }
 }
 
+// ---- vcf project (register / list / scan / unregister / refresh) ----------
+//
+// Cross-project registry maintenance. `project_init` (MCP tool) auto-
+// registers new projects; these commands cover pre-existing projects
+// and explicit deregistration. Operates against the global DB only —
+// the authoritative per-project state lives in each project.db.
+
+async function runProjectRegister(opts: { path: string; name?: string }): Promise<void> {
+  const { openGlobalDb } = await import("./db/global.js");
+  const { upsertProject } = await import("./util/projectRegistry.js");
+  const { openProjectDb } = await import("./db/project.js");
+  const absRoot = resolvePath(opts.path);
+  const projectDbPath = join(absRoot, ".vcf", "project.db");
+  if (!existsSync(projectDbPath)) {
+    err(`${absRoot} is not an initialized VCF project (no .vcf/project.db)`, 2);
+  }
+  // Read name + state from the project.db so registration matches the
+  // project's own metadata. Falls back to the dir basename for name and
+  // 'draft' for state if the row is missing (shouldn't happen on a
+  // properly-initialized project).
+  const pdb = openProjectDb({ path: projectDbPath });
+  const row = pdb.prepare("SELECT name, state FROM project WHERE id = 1").get() as
+    | { name: string; state: string }
+    | undefined;
+  pdb.close();
+  const name =
+    opts.name ??
+    (row ? slugifyBasic(row.name) : slugifyBasic(absRoot.split("/").pop() ?? "project"));
+  const state = row?.state ?? null;
+
+  const globalDb = openGlobalDb({ path: resolvePath(homedir(), ".vcf", "vcf.db") });
+  try {
+    upsertProject(globalDb, { name, root_path: absRoot, state });
+    log(`registered project '${name}' → ${absRoot}`);
+  } finally {
+    globalDb.close();
+  }
+}
+
+async function runProjectList(): Promise<void> {
+  const { openGlobalDb } = await import("./db/global.js");
+  const { listProjects } = await import("./util/projectRegistry.js");
+  const globalDb = openGlobalDb({ path: resolvePath(homedir(), ".vcf", "vcf.db") });
+  try {
+    const rows = listProjects(globalDb);
+    if (rows.length === 0) {
+      log(
+        "no projects registered — use `vcf project register <path>` or `vcf project scan <root>`",
+      );
+      return;
+    }
+    for (const p of rows) {
+      const age = p.last_seen_at
+        ? `${Math.floor((Date.now() - p.last_seen_at) / 1000)}s ago`
+        : "never";
+      process.stderr.write(
+        `  ${p.name.padEnd(24)} ${(p.state_cache ?? "—").padEnd(10)} ${p.root_path} (seen ${age})\n`,
+      );
+    }
+    log(`${rows.length} project(s) registered`);
+  } finally {
+    globalDb.close();
+  }
+}
+
+async function runProjectScan(opts: { root: string }): Promise<void> {
+  const { openGlobalDb } = await import("./db/global.js");
+  const { upsertProject } = await import("./util/projectRegistry.js");
+  const { openProjectDb } = await import("./db/project.js");
+  const absRoot = resolvePath(opts.root);
+  if (!existsSync(absRoot)) {
+    err(`root ${absRoot} does not exist`, 2);
+  }
+  // Walk up to 4 dirs deep looking for .vcf/project.db. Cheap enough
+  // for typical workspace trees; users with deeper hierarchies can
+  // register manually.
+  const found: Array<{ root: string; name: string; state: string }> = [];
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > 4) return;
+    const dbCandidate = join(dir, ".vcf", "project.db");
+    if (existsSync(dbCandidate)) {
+      const pdb = openProjectDb({ path: dbCandidate });
+      const row = pdb.prepare("SELECT name, state FROM project WHERE id = 1").get() as
+        | { name: string; state: string }
+        | undefined;
+      pdb.close();
+      if (row) found.push({ root: dir, name: slugifyBasic(row.name), state: row.state });
+      return; // don't recurse into a project's own tree
+    }
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (e.name.startsWith(".") || e.name === "node_modules") continue;
+      await walk(join(dir, e.name), depth + 1);
+    }
+  }
+  await walk(absRoot, 0);
+  if (found.length === 0) {
+    log(`no VCF projects found under ${absRoot}`);
+    return;
+  }
+  const globalDb = openGlobalDb({ path: resolvePath(homedir(), ".vcf", "vcf.db") });
+  try {
+    for (const p of found) {
+      upsertProject(globalDb, { name: p.name, root_path: p.root, state: p.state });
+      process.stderr.write(`  registered '${p.name}' → ${p.root}\n`);
+    }
+    log(`scan: ${found.length} project(s) registered`);
+  } finally {
+    globalDb.close();
+  }
+}
+
+async function runProjectUnregister(name: string): Promise<void> {
+  const { openGlobalDb } = await import("./db/global.js");
+  const { unregisterProject } = await import("./util/projectRegistry.js");
+  const globalDb = openGlobalDb({ path: resolvePath(homedir(), ".vcf", "vcf.db") });
+  try {
+    const dropped = unregisterProject(globalDb, name);
+    if (dropped) log(`unregistered project '${name}' (files untouched)`);
+    else err(`no project named '${name}' in registry`, 2);
+  } finally {
+    globalDb.close();
+  }
+}
+
+async function runProjectRefresh(): Promise<void> {
+  const { openGlobalDb } = await import("./db/global.js");
+  const { listProjects, setProjectState } = await import("./util/projectRegistry.js");
+  const { openProjectDb } = await import("./db/project.js");
+  const globalDb = openGlobalDb({ path: resolvePath(homedir(), ".vcf", "vcf.db") });
+  try {
+    const rows = listProjects(globalDb);
+    let refreshed = 0;
+    for (const p of rows) {
+      const pdbPath = join(p.root_path, ".vcf", "project.db");
+      if (!existsSync(pdbPath)) {
+        process.stderr.write(
+          `  [MISSING] ${p.name}: ${pdbPath} not found — consider unregistering\n`,
+        );
+        continue;
+      }
+      const pdb = openProjectDb({ path: pdbPath });
+      const row = pdb.prepare("SELECT state FROM project WHERE id = 1").get() as
+        | { state: string }
+        | undefined;
+      pdb.close();
+      if (row) {
+        setProjectState(globalDb, p.root_path, row.state);
+        refreshed++;
+      }
+    }
+    log(`refresh: ${refreshed}/${rows.length} project state(s) updated`);
+  } finally {
+    globalDb.close();
+  }
+}
+
+/** Minimal slug helper — strictly the registry name shape. */
+function slugifyBasic(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 128) || "project"
+  );
+}
+
 // ---- vcf install-skills ----------------------------------------------------
 
 type SkillLayout = "nested-md" | "flat-toml";
@@ -1339,6 +1514,69 @@ pack
   .action(async (name: string) => {
     try {
       await runPackRemove(name);
+    } catch (e) {
+      err((e as Error).message);
+    }
+  });
+
+const project = program
+  .command("project")
+  .description("Cross-project registry — projects tracked by portfolio_graph + project_list.");
+
+project
+  .command("register")
+  .description("Add a pre-existing VCF project to the global registry.")
+  .requiredOption("--path <absolute-path>", "absolute path to the project root")
+  .option("--name <slug>", "override the project's stored name with this slug")
+  .action(async (opts: { path: string; name?: string }) => {
+    try {
+      await runProjectRegister(opts);
+    } catch (e) {
+      err((e as Error).message);
+    }
+  });
+
+project
+  .command("list")
+  .description("Show registered projects, state_cache, and last-seen timestamps.")
+  .action(async () => {
+    try {
+      await runProjectList();
+    } catch (e) {
+      err((e as Error).message);
+    }
+  });
+
+project
+  .command("scan")
+  .description("Walk a directory tree for .vcf/project.db dirs and bulk-register them.")
+  .requiredOption("--root <absolute-path>", "root to scan (up to 4 dirs deep)")
+  .action(async (opts: { root: string }) => {
+    try {
+      await runProjectScan(opts);
+    } catch (e) {
+      err((e as Error).message);
+    }
+  });
+
+project
+  .command("unregister")
+  .description("Drop a project from the registry (does not touch the project's files).")
+  .argument("<name>", "registered project slug")
+  .action(async (name: string) => {
+    try {
+      await runProjectUnregister(name);
+    } catch (e) {
+      err((e as Error).message);
+    }
+  });
+
+project
+  .command("refresh")
+  .description("Re-read state_cache from each registered project's project.db.")
+  .action(async () => {
+    try {
+      await runProjectRefresh();
     } catch (e) {
       err((e as Error).message);
     }

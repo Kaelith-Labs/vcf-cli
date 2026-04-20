@@ -30,6 +30,7 @@ import { slugify, isoDate } from "../util/slug.js";
 import { readTemplate, renderTemplate, templatesDir } from "../util/templates.js";
 import { openProjectDb } from "../db/project.js";
 import { writeAudit } from "../util/audit.js";
+import { upsertProject } from "../util/projectRegistry.js";
 import { VERSION } from "../version.js";
 import { McpError } from "../errors.js";
 
@@ -50,6 +51,12 @@ const ProjectInitInput = z
       .boolean()
       .default(false)
       .describe("proceed even if target_dir is non-empty; never overwrites existing files"),
+    register: z
+      .boolean()
+      .default(true)
+      .describe(
+        "add the new project to the global cross-project registry (used by portfolio_graph + project_list). Opt out with register=false.",
+      ),
     expand: z.boolean().default(false),
   })
   .strict();
@@ -218,6 +225,21 @@ export function registerProjectInit(server: McpServer, deps: ServerDeps): void {
         db.close();
         if (newDb) written.push(dbPath);
         else skipped.push(dbPath);
+
+        // Global registry: auto-register the new project unless opted out.
+        // Silent if it's already registered (upsert). Uses the same slug
+        // the project directory already derived from parsed.name.
+        if (parsed.register) {
+          try {
+            upsertProject(deps.globalDb, {
+              name: projectSlug,
+              root_path: target,
+              state: "draft",
+            });
+          } catch {
+            /* non-fatal — registry is a convenience, not a requirement */
+          }
+        }
 
         // Git init + hooks. Only init if .git doesn't already exist so we
         // don't disturb an existing repo.

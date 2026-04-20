@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- **Cross-project dependency graph** (Phase 3):
+  - New global DB table `projects` (migration v3) tracks name +
+    root_path + state_cache + depends_on + timestamps. Opt-in —
+    `project_init` auto-registers unless `register: false` is passed.
+  - New MCP tools: **`project_list`** (all registered projects) and
+    **`portfolio_graph`** (projects + active blockers + unblocked-
+    if-ships reverse map, derived from each plan's `depends_on:`
+    frontmatter).
+  - New CLI: `vcf project register/list/scan/unregister/refresh`.
+    `scan` bulk-discovers `.vcf/project.db` dirs under a root.
+  - State stays current automatically: `plan_save` + `review_prepare`
+    mirror the new state into the registry; every project-scope tool
+    call bumps `last_seen_at` via a hook in `writeAudit`.
+  - Plan frontmatter gains optional `depends_on: [slug, …]` (or
+    multi-line YAML list form). `plan_save` projects it into the
+    registry — no separate indexing step.
+  - Purely informational: the graph does not block state transitions;
+    `ship_audit` does not consult it.
 - **KB plugin protocol** — `config.kb.packs: [{name, root}]` registers
   third-party primer packs. Loader walks each pack's `<root>/kb/` and
   tags entries with `pack=<name>`; IDs are namespaced `@<name>/...` so

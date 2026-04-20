@@ -97,6 +97,27 @@ export const GLOBAL_MIGRATIONS: Migration[] = [
       ALTER TABLE audit ADD COLUMN outputs_json TEXT;
     `,
   },
+  {
+    version: 3,
+    name: "cross_project_registry",
+    up: `
+      -- Opt-in cross-project registry for portfolio_graph + project_list.
+      -- Populated by project_init (auto) or 'vcf project register/scan'
+      -- (manual). state_cache + depends_on_json + last_seen_at are kept
+      -- current by project-scope tool calls; the authoritative values
+      -- live in each project's own project.db and plan frontmatter.
+      CREATE TABLE IF NOT EXISTS projects (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT NOT NULL UNIQUE,
+        root_path       TEXT NOT NULL UNIQUE,
+        state_cache     TEXT,                    -- mirror of project.state
+        depends_on_json TEXT NOT NULL DEFAULT '[]',  -- JSON array of project slugs
+        registered_at   INTEGER NOT NULL,        -- ms since epoch
+        last_seen_at    INTEGER NOT NULL         -- ms since epoch; updated on every tool call
+      );
+      CREATE INDEX IF NOT EXISTS idx_projects_root ON projects(root_path);
+    `,
+  },
 ];
 
 export const PROJECT_MIGRATIONS: Migration[] = [

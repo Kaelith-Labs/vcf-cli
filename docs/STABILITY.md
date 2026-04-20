@@ -66,6 +66,7 @@ Every tool returns one of:
 - `spec_template`, `spec_save`, `spec_get`, `spec_suggest_primers`
 - `project_init`
 - `config_get`, `endpoint_list`, `primer_list`, `model_list`, `pack_list`
+- `project_list`, `portfolio_graph`
 - `vcf_ping`
 
 **Project scope** — loaded inside an initialized project:
@@ -76,7 +77,7 @@ Every tool returns one of:
 - `review_prepare`, `review_submit`, `review_execute`, `review_history`, `response_log_add`
 - `ship_audit`, `ship_build`, `ship_release`
 
-31 tools total. Tool count + names are stable within the 1.x line.
+33 tools total. Tool count + names are stable within the 1.x line.
 
 ## Deprecation policy (1.0+)
 

@@ -17,6 +17,7 @@ import type { ServerDeps } from "../server.js";
 import { runTool, success } from "../envelope.js";
 import { assertInsideAllowedRoot } from "../util/paths.js";
 import { writeAudit } from "../util/audit.js";
+import { setProjectDependsOn, setProjectState } from "../util/projectRegistry.js";
 import { McpError } from "../errors.js";
 
 const PlanSaveInput = z
@@ -87,11 +88,26 @@ export function registerPlanSave(server: McpServer, deps: ServerDeps): void {
           indexArtifact(deps, target, kindOf(target), content);
         }
 
-        // Advance project state.
+        // Advance project state in both the per-project DB (authoritative)
+        // and the global registry's state_cache (fast portfolio_graph lookup).
         const now = Date.now();
         deps.projectDb
           .prepare("UPDATE project SET state = ?, updated_at = ? WHERE id = 1")
           .run(parsed.advance_state, now);
+        try {
+          setProjectState(deps.globalDb, projectRoot, parsed.advance_state);
+        } catch {
+          /* non-fatal — registry is opt-in */
+        }
+
+        // Project the plan's `depends_on:` frontmatter into the registry so
+        // portfolio_graph can render blockers without re-reading files.
+        try {
+          const deps_on = parseDependsOn(parsed.plan);
+          setProjectDependsOn(deps.globalDb, projectRoot, deps_on);
+        } catch {
+          /* non-fatal */
+        }
 
         const payload = success(
           written,
@@ -161,4 +177,43 @@ function indexArtifact(deps: ServerDeps, path: string, kind: string, body: strin
          hash = excluded.hash`,
     )
     .run(path, kind, "{}", Date.now(), hash);
+}
+
+/**
+ * Extract `depends_on: [slug, slug, ...]` from the plan markdown's
+ * frontmatter. Returns an empty array if the frontmatter is missing,
+ * malformed, or the key isn't present. Only slug-shaped strings survive.
+ *
+ * We parse inline here rather than sharing primers/load.ts:extractFrontmatter
+ * because plan frontmatter may nest more richly than KB frontmatter and
+ * we don't want to drag that complexity into the KB loader.
+ */
+function parseDependsOn(plan: string): string[] {
+  if (!plan.startsWith("---")) return [];
+  const end = plan.indexOf("\n---", 3);
+  if (end < 0) return [];
+  const block = plan.slice(3, end);
+  // Support both `depends_on: [a, b]` inline and `depends_on:\n  - a\n  - b`.
+  const inline = block.match(/^\s*depends_on\s*:\s*\[(.*?)\]\s*$/m);
+  if (inline && inline[1] !== undefined) {
+    return inline[1]
+      .split(",")
+      .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+      .filter((s) => /^[a-z0-9][a-z0-9-]*$/.test(s));
+  }
+  const multi = block.match(/^\s*depends_on\s*:\s*\n((?:\s+-\s+.+\n?)+)/m);
+  if (multi && multi[1] !== undefined) {
+    return multi[1]
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("-"))
+      .map((l) =>
+        l
+          .slice(1)
+          .trim()
+          .replace(/^["']|["']$/g, ""),
+      )
+      .filter((s) => /^[a-z0-9][a-z0-9-]*$/.test(s));
+  }
+  return [];
 }

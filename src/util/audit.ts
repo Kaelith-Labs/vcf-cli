@@ -16,6 +16,7 @@
 
 import { createHash } from "node:crypto";
 import type { Database as DatabaseType } from "better-sqlite3";
+import { touchProject } from "./projectRegistry.js";
 
 export type AuditScope = "global" | "project" | "cli";
 
@@ -147,4 +148,14 @@ export function writeAudit(db: DatabaseType, entry: AuditEntryInput): void {
     FULL_AUDIT_MODE ? canonicalRedactedJson(entry.inputs) : null,
     FULL_AUDIT_MODE ? canonicalRedactedJson(entry.outputs) : null,
   );
+  // Cross-project registry hook: bump last_seen_at for the current
+  // project. No-op if the project isn't registered (silent — the
+  // registry is opt-in). Wrapped to never throw into the tool path.
+  if (entry.project_root) {
+    try {
+      touchProject(db, entry.project_root);
+    } catch {
+      /* non-fatal */
+    }
+  }
 }

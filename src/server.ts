@@ -54,6 +54,7 @@ import {
   registerPrimerList,
   registerPackList,
 } from "./tools/catalog.js";
+import { registerProjectList, registerPortfolioGraph } from "./tools/portfolio.js";
 
 export interface ServerDeps {
   scope: Scope;
@@ -187,6 +188,8 @@ export function createServer(deps: ServerDeps): McpServer {
   registerModelList(server, deps);
   registerPrimerList(server, deps);
   registerPackList(server, deps);
+  registerProjectList(server, deps);
+  registerPortfolioGraph(server, deps);
 
   return server;
 }

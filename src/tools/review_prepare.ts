@@ -37,6 +37,7 @@ import { writeAudit } from "../util/audit.js";
 import { McpError } from "../errors.js";
 import { loadKbCached } from "../primers/load.js";
 import { matchPrimers } from "../primers/match.js";
+import { setProjectState } from "../util/projectRegistry.js";
 import { emptyCarryForward, renderYaml, type CarryForward } from "../review/carryForward.js";
 
 // Review type is validated against `config.review.categories` at runtime, not
@@ -171,10 +172,15 @@ export function registerReviewPrepare(server: McpServer, deps: ServerDeps): void
           )
           .run(runId, parsed.type, parsed.stage, now, JSON.stringify(priorCf));
 
-        // Advance project state to reviewing on first prepare.
+        // Advance project state to reviewing on first prepare (both DBs).
         deps.projectDb
           .prepare("UPDATE project SET state = 'reviewing', updated_at = ? WHERE id = 1")
           .run(now);
+        try {
+          setProjectState(deps.globalDb, root, "reviewing");
+        } catch {
+          /* non-fatal */
+        }
 
         const manifest = {
           run_id: runId,
