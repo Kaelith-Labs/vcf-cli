@@ -76,7 +76,10 @@ describe("M10 vcf CLI", () => {
   it("vcf version prints the pinned version", () => {
     const res = runCli(["version"]);
     expect(res.status).toBe(0);
-    expect(res.stderr).toMatch(/vcf \d+\.\d+\.\d+/);
+    // `vcf version` writes to stdout with the `vcf-cli` prefix so
+    // downstream (brew formula test, smoke scripts, shell pipelines) all
+    // agree on one format.
+    expect(res.stdout).toMatch(/^vcf-cli \d+\.\d+\.\d+/);
   });
 
   it("vcf reindex writes artifact rows for plans/decisions markdown", async () => {

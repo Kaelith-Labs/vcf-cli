@@ -4,6 +4,43 @@ All notable changes to `@kaelith-labs/cli` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). MCP spec compatibility and SDK version pin are called out per release.
 
+## [0.2.1-alpha.0] — 2026-04-20
+
+Three install-path bugs found during the first real Homebrew smoke run on
+macOS 26.3.1, all blocking `vcf` from doing anything when installed via
+`brew install` or any other symlink-based install path.
+
+### Fixed
+
+- **CLI entrypoint guard fails on symlink invocation.** `src/cli.ts`
+  compared `import.meta.url` against `pathToFileURL(process.argv[1]).href`
+  to decide whether to run `parseAsync`. Homebrew, Scoop, and npm all
+  install the `vcf` binary as a symlink into a versioned Cellar / shim
+  directory, so argv[1] was the symlink while import.meta.url was the
+  target — the URLs never matched, main never ran, and every invocation
+  silently exited 0 with no output. Fix: canonicalize argv[1] via
+  `fs.realpathSync` before the comparison. Regression test in
+  `test/integration/cli-symlink-entrypoint.test.ts` spawns the built
+  `dist/cli.js` via a real symlink and asserts version output reaches
+  stdout.
+- **`vcf version` wrote to stderr and used the wrong prefix.** Output is
+  now on stdout (so shell pipelines and smoke tests can grep it) and
+  formatted as `vcf-cli <version> (MCP spec <spec>)` to match the brew
+  formula's `test do` block, the Scoop package name, and the install-path
+  smoke scripts.
+- **`src/version.ts` was stale at 0.0.2-alpha.0** — the M0 stub comment
+  promised a build-time pipeline that never landed. Synced manually to
+  0.2.1-alpha.0; a proper build-time auto-sync is filed in
+  `plans/2026-04-20-followups.md` item 4.
+
+### Pipeline
+
+- Homebrew tap formula was also updated to use `std_npm_args(prefix:)` —
+  Homebrew dropped `Language::Node.std_npm_install_args` in a recent
+  release, causing `brew install vcf-cli` to fail with `NameError:
+  uninitialized constant Language::Node`. Change lives in
+  `Kaelith-Labs/homebrew-vcf`.
+
 ## [0.2.0-alpha.0] — 2026-04-20
 
 Phase-3 feature wave. Cross-project visibility, third-party KB

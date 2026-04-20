@@ -18,7 +18,7 @@ import { Command } from "commander";
 import { resolve as resolvePath, join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { mkdir, writeFile, readFile, stat, readdir, copyFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, realpathSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -1387,7 +1387,11 @@ program
   .command("version")
   .description("Print the installed vcf version + MCP spec pin.")
   .action(() => {
-    process.stderr.write(`vcf ${VERSION} (MCP spec ${MCP_SPEC_VERSION})\n`);
+    // stdout (not stderr) so shell pipelines and smoke tests that grep
+    // version output work. Prefix matches the package + tap + bucket name
+    // (vcf-cli) so downstream regex in the brew formula `test do` block
+    // and the packaging/smoke-tests/ scripts all agree on one format.
+    process.stdout.write(`vcf-cli ${VERSION} (MCP spec ${MCP_SPEC_VERSION})\n`);
   });
 
 program
@@ -1661,7 +1665,24 @@ admin
 // importing it from a test (or another module) would trigger a spurious
 // command parse against vitest's argv. `pathToFileURL` handles Windows
 // drive-letter paths (C:\...) where a naïve `file://` prefix would break.
-const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+//
+// argv[1] must be resolved through realpath first: Homebrew, Scoop, and
+// npm all install the `vcf` binary as a symlink into a versioned
+// Cellar / shim directory, so argv[1] is the symlink path while
+// import.meta.url is the symlink *target*. Comparing the URLs naïvely
+// fails and main() never runs — the binary silently exits 0 on every
+// invocation. realpathSync canonicalizes both sides of the comparison.
+const entryUrl = (() => {
+  const argv1 = process.argv[1];
+  if (!argv1) return "";
+  try {
+    return pathToFileURL(realpathSync(argv1)).href;
+  } catch {
+    // Fallback if realpath fails (e.g. bundled single-file binary) —
+    // compare on the raw argv path, matching the pre-realpath behavior.
+    return pathToFileURL(argv1).href;
+  }
+})();
 if (import.meta.url === entryUrl) {
   program.parseAsync(process.argv).catch((e: unknown) => {
     err(e instanceof Error ? e.message : String(e));
