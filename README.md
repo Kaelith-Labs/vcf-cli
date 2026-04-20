@@ -136,7 +136,9 @@ Final `gh release create` is manual in this MVP (`ship_release` lands as a plan/
 
 ```bash
 vcf reindex                  # re-scan plans/ memory/ docs/ into project.db
-vcf verify                   # config + allowed_roots + KB + env vars + hooks
+vcf verify                   # config + allowed_roots + KB + packs + hooks
+vcf verify --format json     # structured output for cron / n8n pipelines
+vcf health                   # HEAD each endpoint, exit 9 if any unreachable
 vcf register-endpoint \      # append a new LLM endpoint to config.yaml
   --name openai-main \
   --provider openai-compatible \
@@ -145,10 +147,18 @@ vcf register-endpoint \      # append a new LLM endpoint to config.yaml
   --auth-env-var OPENAI_API_KEY
 vcf stale-check              # flag KB entries past review.stale_primer_days
 vcf update-primers           # pull latest @kaelith-labs/kb (warn + skip on conflicts)
+vcf pack add --name <slug> --path <abs>   # register a third-party KB pack
+vcf pack list                # show registered packs
+vcf embed-kb                 # populate embeddings cache (optional)
 vcf admin audit --tool idea_capture --format table
+vcf admin audit --format json --full     # include redacted inputs/outputs JSON
 ```
 
 These are intentionally not MCP tools. Deterministic maintenance that a human or CI runs should be a CLI command, not a tool that burns tokens on every LLM turn.
+
+### Scheduled automation
+
+Importable n8n workflows for weekly stale-check, hourly endpoint-health, and weekly KB-update notifications live under [`packaging/n8n/`](packaging/n8n/). See its README for setup + cron equivalents if you're not on n8n.
 
 ## Pins
 
