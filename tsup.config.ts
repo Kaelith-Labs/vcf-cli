@@ -20,17 +20,26 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
-  // Post-build fixup: esbuild strips the `node:` prefix on built-ins for
-  // older-Node compatibility, but `node:sqlite` has no bare alias — the
-  // bundled `from 'sqlite'` import fails at runtime with "Cannot find
-  // package 'sqlite'". Restore the prefix after the bundle writes.
+  // Post-build: restore the `node:` prefix on built-in imports that have no
+  // bare alias (`sqlite`, `test`, `sea`). tsup strips the prefix during its
+  // resolve pass even though the underlying esbuild preserves it correctly
+  // when invoked directly — it's a known tsup limitation that `external:`
+  // and `esbuildOptions.packages: "external"` do NOT route around:
+  //   - https://github.com/egoist/tsup/issues/417   (tracking issue)
+  //   - https://github.com/evanw/esbuild/issues/3821  (upstream)
+  //   - https://github.com/remix-run/remix/issues/5954  (same class)
+  // This post-build sed is the community-standard workaround. The regex
+  // covers every built-in that lacks a bare alias so adding a new
+  // `node:test` / `node:sea` import later doesn't silently break.
   async onSuccess() {
+    const PREFIXLESS = ["sqlite", "test", "sea"].join("|");
+    const re = new RegExp(`from ['"](${PREFIXLESS})['"]`, "g");
     const distDir = "dist";
     for (const name of await readdir(distDir)) {
       if (!name.endsWith(".js")) continue;
       const path = join(distDir, name);
       const src = await readFile(path, "utf8");
-      const patched = src.replace(/from ['"]sqlite['"]/g, 'from "node:sqlite"');
+      const patched = src.replace(re, (_, m) => `from "node:${m}"`);
       if (patched !== src) await writeFile(path, patched, "utf8");
     }
   },

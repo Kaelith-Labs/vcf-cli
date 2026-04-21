@@ -23,9 +23,11 @@ export default defineConfig({
     // node:sqlite locks + the MCP SDK's in-memory transport do not play
     // well with vitest's default worker pool; concurrent workers can
     // wedge on SIGTERM. A single forked process is plenty fast for this
-    // surface.
+    // surface. Vitest 4 flattened `poolOptions.forks.singleFork` to
+    // top-level `maxWorkers: 1, isolate: false` (see migration guide).
     pool: "forks",
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    isolate: false,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

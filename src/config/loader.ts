@@ -13,9 +13,10 @@ import { readFile } from "node:fs/promises";
 import { parse as parseYaml } from "yaml";
 import { ConfigSchema, type Config } from "./schema.js";
 
-// Stable error codes; re-exported from M2.5 once the central error table
-// lands. Keeping them here for now means M1 is self-contained and testable
-// without the MCP server surface.
+// Loader-local error class. Kept here (rather than flattened into the
+// central errors module) so M1 is self-contained and unit-testable without
+// pulling the full MCP server surface into a config-only test context.
+// The string `code` aligns with the stable E_* enum in src/errors.ts.
 export class ConfigError extends Error {
   constructor(
     public readonly code: string,

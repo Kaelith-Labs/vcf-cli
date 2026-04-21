@@ -152,12 +152,7 @@ check_out "vcf version reports a semver" \
 
 log_section "vcf init + filesystem layout"
 
-init_noninteractive() {
-  # vcf init prompts y/N for telemetry; answer 'n' so the smoke never opts
-  # the test box into error reporting.
-  printf 'n\n' | vcf init
-}
-check "vcf init succeeds" init_noninteractive
+check "vcf init --no-telemetry succeeds" vcf init --no-telemetry
 check "~/.vcf exists" test -d "$HOME/.vcf"
 check "~/.vcf/config.yaml exists" test -f "$HOME/.vcf/config.yaml"
 check_out "config.yaml has no unresolved \${ENV} refs" \

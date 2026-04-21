@@ -55,7 +55,7 @@ async function loadConfigOrExit(): Promise<Awaited<ReturnType<typeof loadConfig>
 
 // ---- vcf init --------------------------------------------------------------
 
-async function runInit(): Promise<void> {
+async function runInit(opts: { telemetry?: boolean } = {}): Promise<void> {
   const cfgDir = resolvePath(homedir(), ".vcf");
   const cfgPath = resolvePath(cfgDir, "config.yaml");
   const userMcpJsonPath = resolvePath(homedir(), ".mcp.json");
@@ -65,12 +65,22 @@ async function runInit(): Promise<void> {
   if (existsSync(cfgPath)) {
     log(`${cfgPath} already exists — leaving in place.`);
   } else {
-    const rl = createInterface({ input: process.stdin, output: process.stderr });
-    const telemetryInput = await rl.question(
-      "Enable opt-in error reporting? Captures only uncaught exceptions + E_INTERNAL failures. Never tool inputs/outputs. [y/N] ",
-    );
-    rl.close();
-    const telemetryEnabled = /^y(es)?$/i.test(telemetryInput.trim());
+    // Precedence: explicit flag > interactive prompt > default-false.
+    // Non-TTY (CI, piped stdin) defaults to false without prompting so
+    // automation never hangs on `vcf init`.
+    let telemetryEnabled: boolean;
+    if (opts.telemetry !== undefined) {
+      telemetryEnabled = opts.telemetry;
+    } else if (process.stdin.isTTY) {
+      const rl = createInterface({ input: process.stdin, output: process.stderr });
+      const telemetryInput = await rl.question(
+        "Enable opt-in error reporting? Captures only uncaught exceptions + E_INTERNAL failures. Never tool inputs/outputs. [y/N] ",
+      );
+      rl.close();
+      telemetryEnabled = /^y(es)?$/i.test(telemetryInput.trim());
+    } else {
+      telemetryEnabled = false;
+    }
 
     const workspaceRoot = resolvePath(homedir(), "vcf");
     const seed = [
@@ -1400,9 +1410,14 @@ program
   .description(
     "Seed ~/.vcf/config.yaml, write/merge user-level .mcp.json. Idempotent — re-run safe.",
   )
-  .action(async () => {
+  .option("--telemetry", "enable opt-in error reporting without prompting")
+  .option(
+    "--no-telemetry",
+    "disable opt-in error reporting without prompting (default when non-TTY)",
+  )
+  .action(async (opts: { telemetry?: boolean }) => {
     try {
-      await runInit();
+      await runInit(opts);
     } catch (e) {
       err((e as Error).message);
     }

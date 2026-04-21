@@ -153,10 +153,7 @@ check_out "vcf version reports a semver" \
 
 log_section "vcf init + filesystem layout"
 
-init_noninteractive() {
-  printf 'n\n' | vcf init
-}
-check "vcf init succeeds" init_noninteractive
+check "vcf init --no-telemetry succeeds" vcf init --no-telemetry
 check "~/.vcf exists" test -d "$HOME/.vcf"
 check "~/.vcf/config.yaml exists" test -f "$HOME/.vcf/config.yaml"
 check_out "config.yaml has version: 1" \

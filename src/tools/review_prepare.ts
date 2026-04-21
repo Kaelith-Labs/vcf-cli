@@ -34,6 +34,7 @@ import type { ServerDeps } from "../server.js";
 import { runTool, success } from "../envelope.js";
 import { assertInsideAllowedRoot } from "../util/paths.js";
 import { writeAudit } from "../util/audit.js";
+import { isoCompactNow } from "../util/ids.js";
 import { McpError } from "../errors.js";
 import { loadKbCached } from "../primers/load.js";
 import { matchPrimers } from "../primers/match.js";
@@ -231,16 +232,6 @@ function readProjectRoot(deps: ServerDeps): string | null {
     | { root_path: string }
     | undefined;
   return row?.root_path ?? null;
-}
-
-function isoCompactNow(): string {
-  // Millisecond resolution in the run id — two re-prepares in the same
-  // second must not collide on INSERT (review_runs.id is unique). Keeps
-  // the format filesystem-safe: YYYYMMDDTHHMMSSmmmZ.
-  return new Date()
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.(\d{3})Z$/, "$1Z");
 }
 
 async function copyStageFile(

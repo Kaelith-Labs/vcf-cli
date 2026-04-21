@@ -4,6 +4,58 @@ All notable changes to `@kaelith-labs/cli` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). MCP spec compatibility and SDK version pin are called out per release.
 
+## [0.3.1] — 2026-04-21
+
+**Hardening pass — real bugs + workaround cleanup.** No public-API changes;
+every CLI flag, MCP tool, and config shape is identical to 0.3.0.
+
+### Fixed
+
+- **Audit-on-error invariant across all 28 MCP tools.** Previously only
+  `test_execute` wrote an audit row on the sad path. Every other tool's
+  fallback `.catch()` was unreachable because `runTool` already swallows
+  errors. `E_CANCELED`, `E_STATE_INVALID`, and Zod-validation failures
+  now persist to `~/.vcf/vcf.db.audit` so `vcf admin audit` can replay
+  a failed session.
+- **`upsertProject` TOCTOU race.** Two concurrent registrations on the
+  same `root_path` could both miss the SELECT and race to INSERT, with
+  the second failing at the UNIQUE constraint. Replaced SELECT-then-
+  INSERT with a single atomic `INSERT ... ON CONFLICT DO UPDATE`.
+- **SIGKILL escalation timer leak in `test_execute` and `ship_build`.**
+  When a child process exited between SIGTERM and the 2s SIGKILL
+  escalation, the inner timer's callback stayed pinned to closure state
+  until it fired uselessly. Both now clear the escalation handle when
+  the process finishes cleanly.
+- **`vcf init` now accepts `--telemetry` / `--no-telemetry`** and
+  auto-defaults to `false` when stdin is not a TTY. CI pipelines and
+  unattended provisioning no longer need a `printf 'n\\n' |` hack.
+
+### Changed
+
+- **`VERSION` constant auto-derived from `package.json`.** Previously
+  `src/version.ts` was a hardcoded string that drifted three releases
+  behind reality once already. Now uses the ESM JSON import
+  (`with { type: "json" }`) so `vcf version` can never lie again.
+- **`DatabaseSync` row shapes validated at the data boundary.**
+  Replaced `as unknown as T[]` casts in `projectRegistry`, `idea_get`,
+  `idea_search`, `spec_get` with a shared Zod-parsing `queryRow` /
+  `queryAll` helper in `src/util/db.ts`. A dropped/renamed column now
+  throws loudly rather than silently producing `undefined`.
+- **Vitest `poolOptions` migrated to the v4 top-level shape**
+  (`maxWorkers: 1, isolate: false`). Silences the every-test
+  deprecation warning.
+- **Shared `src/util/ids.ts`** now owns the filesystem-safe compact-ISO
+  timestamp generator. `review_prepare` and `submitCore` both use it;
+  the second-resolution pattern in `submitCore` is now ms-resolution
+  too, closing the class of "two writes in the same second collided
+  on a UNIQUE constraint" bug.
+
+### Documentation
+
+- `docs/STABILITY.md` now documents CLI exit codes — particularly that
+  `vcf health` exits `9` (not `1`) when endpoints are unreachable, so
+  CI can accept exit 0 OR 9 without eating real crashes.
+
 ## [0.3.0] — 2026-04-21
 
 **Drop `alpha` tag.** Four-platform smoke coverage (macOS, Windows ARM64,

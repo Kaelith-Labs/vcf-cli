@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync as DatabaseType } from "node:sqlite";
 import { assertInsideAllowedRoot } from "../util/paths.js";
+import { isoCompactNow } from "../util/ids.js";
 import { McpError } from "../errors.js";
 import {
   CARRY_FORWARD_SECTIONS,
@@ -84,11 +85,7 @@ export async function persistReviewSubmission(args: PersistArgs): Promise<Persis
   await assertInsideAllowedRoot(reportsDir, allowedRoots);
   await mkdir(reportsDir, { recursive: true });
   const now = Date.now();
-  const ts = new Date(now)
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d+/, "")
-    .replace(/Z$/, "Z");
+  const ts = isoCompactNow(new Date(now));
   const reportPath = join(reportsDir, `stage-${run.stage}-${ts}.md`);
   await writeFile(reportPath, renderReport(run, submission, merged), "utf8");
 

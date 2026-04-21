@@ -43,6 +43,25 @@ Codes prefixed `E_` form a stable enum:
 
 Meanings may sharpen in edge cases; codes themselves won't be renamed.
 
+## CLI exit codes
+
+The `vcf` CLI exits with semantic codes so CI wrappers can distinguish
+"environment is unhealthy" from "something crashed":
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. |
+| `1` | Generic failure (caught error, assertion, etc.). |
+| `2` | Usage error — missing required arg, unknown command, invalid flag. |
+| `9` | `vcf health` only: one or more configured endpoints are unreachable. JSON body still parses with `ok: false`, `unreachable_count > 0`. |
+
+Exit 9 is informational, not a crash — treat it the same as a healthy run
+that happened to find no Ollama reachable. CI gates should accept exit 0
+OR 9 and only fail on anything else.
+
+Other non-zero exits (`1`, `2`) indicate command-level failure
+(config load error, unknown flag, etc.) and should fail CI.
+
 ## Envelope shape (stable at 1.0)
 
 Every tool returns one of:
