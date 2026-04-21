@@ -136,8 +136,8 @@ if npm list -g --depth=0 @kaelith-labs/cli >/dev/null 2>&1; then
   npm uninstall -g @kaelith-labs/cli >/dev/null 2>&1 || true
 fi
 
-check "npm install -g @kaelith-labs/cli@alpha" \
-  npm install -g "@kaelith-labs/cli@alpha"
+check "npm install -g @kaelith-labs/cli" \
+  npm install -g "@kaelith-labs/cli"
 
 # ---- shim + version --------------------------------------------------------
 
